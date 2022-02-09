@@ -6,6 +6,7 @@ except ImportError:
 from libtbx.str_utils import make_sub_header
 #%%
 import matplotlib as plt
+import io
 plt.use('Agg') # Must be before importing matplotlib.pyplot or pylab!
 from matplotlib import pyplot as plt
 import numpy as np
@@ -147,6 +148,7 @@ Script to do xxxxxx
    
 
 #-----------------------------------------------------------------------------
+
   def plot_counts(self):
     '''
     plots the counts of residues nearby GOL
@@ -159,9 +161,8 @@ Script to do xxxxxx
     plt.xlabel('Name of Amino Acid')
 
     spacing = 0.500
-
-    #plt.savefig(filename, format="svg")
-    plt.close()
+    fileobject1 = io.BytesIO()
+    plt.savefig(fileobject1 ,format="svg")
     plt.close()
   
 #-----------------------------------------------------------------------------
