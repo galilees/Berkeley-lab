@@ -173,6 +173,7 @@ Script to do xxxxxx
     self.aa_dict = {k: v for k, v in self.res_dict.items() }
     self.aa_dict.pop('HOH')
     self.aa_dict.pop('GOL')
+    self.aa_dict.pop('Other')
     print(self.aa_dict)
 
 #-----------------------------------------------------------------------------
