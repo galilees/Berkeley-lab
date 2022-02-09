@@ -58,6 +58,11 @@ Script to do xxxxxx
     self.get_gol_selection()
     self.count_nearby_GOL()
     self.plot_counts()
+    self.ave_resdict()
+    self.max_res()
+    self.min_res()
+    self.aa_dict()
+   
 
   #-----------------------------------------------------------------------------
 
@@ -78,7 +83,18 @@ Script to do xxxxxx
             
               iselection = ag.atoms().extract_i_seq()
               sel_str_ligand = " ".join(['chain', chain.id, 'and resname', ag.resname, 'and resseq', rg.resseq])
-             
+              b_max = 100
+  
+              atoms = ag.atoms()
+              ave = 0 
+            
+              for a in atoms:
+                ave = ave + a.b 
+              ave = ave/len(atoms) 
+      
+            
+              if ave > b_max:
+                continue
               self.gol_selection_dict[sel_str_ligand] = iselection
 
     print(self.gol_selection_dict)
@@ -89,29 +105,14 @@ Script to do xxxxxx
 #-----------------------------------------------------------------------------
   # def nearby_residues_selection_list(self):
 
-
-  #   b_max = 100
-  
-    
-              
-  #             atoms = ag.atoms()
-  #             ave = 0 
-            
-  #             for a in atoms:
-  #               ave = ave + a.b 
-  #             ave = ave/len(atoms) 
-      
-            
-  #             if ave > b_max:
-  #               continue
+  # 
                 
-  #             selection_list.append(sel_str_ligand)
-            
   
-         
-
 #-----------------------------------------------------------------------------
   def count_nearby_GOL(self):
+    '''
+    counts the number of residues nearby GOL
+    '''  
     make_sub_header('Getting residue counts ditionary', out=self.logger)
     resname_dict_list = []
 
@@ -147,6 +148,9 @@ Script to do xxxxxx
 
 #-----------------------------------------------------------------------------
   def plot_counts(self):
+    '''
+    plots the counts of residues nearby GOL
+    '''  
    
     plt.bar(list(self.res_dict.keys()), self.res_dict.values(), color='r')
     plt.title('Nearby Amono Acids Count', y=1.16, fontsize=14)
@@ -155,10 +159,53 @@ Script to do xxxxxx
     plt.xlabel('Name of Amino Acid')
 
     spacing = 0.500
-   
+
+    #plt.savefig(filename, format="svg")
     plt.close()
-    return
-  plt.show(block=False)
+    plt.close()
+  
+#-----------------------------------------------------------------------------
+  def aa_dict(self):
+    '''
+    counts the number of amino acids nearby GOL
+    '''
+    make_sub_header('Getting amino acid counts ditionary', out=self.logger)  
+    self.aa_dict = {k: v for k, v in self.res_dict.items() }
+    self.aa_dict.pop('HOH')
+    self.aa_dict.pop('GOL')
+    print(self.aa_dict)
+
+#-----------------------------------------------------------------------------
+  def ave_resdict(self):
+    '''
+    average number of residues nearby GOL
+    '''
+    make_sub_header('Getting average residue counts ditionary', out=self.logger)  
+    ave_resdict = {k: v/len(self.resname_dict) for k, v in self.resname_dict.items()}
+    print(ave_resdict) 
+#-----------------------------------------------------------------------------
+  def max_res(self):
+    '''
+  maximum  of residues nearby GOL
+    '''
+    make_sub_header('Getting maximum residues', out=self.logger)  
+    max =  [key for key in self.res_dict if 
+          all(self.res_dict[temp] <= self.res_dict[key]
+          for temp in self.res_dict)]
+
+    print("Keys with maximum values are : " + str(max))
+#-----------------------------------------------------------------------------
+  def min_res(self):
+    '''
+  minimum of residues nearby GOL
+    '''
+    make_sub_header('Getting minimum residues', out=self.logger)    
+    min =  [key for key in self.res_dict if 
+            all(self.res_dict[temp] >= self.res_dict[key]
+            for temp in self.res_dict)]
+    
+    print("Keys with minimum values are : " + str(min))
+
 #-----------------------------------------------------------------------------
 
 def perform_tests(self):
@@ -173,3 +220,5 @@ if __name__ == '__main__':
   #
   from iotbx.cli_parser import run_program
   run_program(program_class=AnalyseGol, args=["/Users/GalileeS/Desktop/test/1bg4.pdb"] )
+
+# %%
