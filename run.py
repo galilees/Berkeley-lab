@@ -161,8 +161,8 @@ Script to do xxxxxx
     plt.xlabel('Name of Amino Acid')
 
     spacing = 0.500
-    fileobject1 = io.BytesIO()
-    plt.savefig(fileobject1 ,format="svg")
+  
+    plt.savefig("count_plot.png")
     plt.close()
   
 #-----------------------------------------------------------------------------
