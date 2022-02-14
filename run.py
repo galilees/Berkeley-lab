@@ -151,9 +151,12 @@ Script to do xxxxxx
     plt.xlabel('Name of Amino Acid')
 
     spacing = 0.500
-  
-    plt.savefig("count_plot.png")
+    #fileobject1 = io.BytesIO()
+    plt.savefig('bla.png')
     plt.close()
+    # fileobject1 = io.BytesIO()
+    # plt.savefig(fileobject1 ,format="svg")
+
   
 #-----------------------------------------------------------------------------
   def aa_dict(self):
