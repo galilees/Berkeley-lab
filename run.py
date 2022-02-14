@@ -4,7 +4,7 @@ try:
 except ImportError:
   from libtbx.program_template import ProgramTemplate
 from libtbx.str_utils import make_sub_header
-#%%
+
 import matplotlib as plt
 import io
 plt.use('Agg') # Must be before importing matplotlib.pyplot or pylab!
@@ -60,8 +60,7 @@ Script to do xxxxxx
     self.count_nearby_GOL()
     self.plot_counts()
     self.ave_resdict()
-    self.max_res()
-    self.min_res()
+    self.max_min_res()
     self.aa_dict()
    
 
@@ -100,16 +99,7 @@ Script to do xxxxxx
 
     print(self.gol_selection_dict)
               
-    
-   
-    
-#-----------------------------------------------------------------------------
-  # def nearby_residues_selection_list(self):
-
-  # 
-                
-  
-#-----------------------------------------------------------------------------
+#----------------------------------------------------------------------------
   def count_nearby_GOL(self):
     '''
     counts the number of residues nearby GOL
@@ -183,31 +173,23 @@ Script to do xxxxxx
     average number of residues nearby GOL
     '''
     make_sub_header('Getting average residue counts ditionary', out=self.logger)  
-    ave_resdict = {k: v/len(self.resname_dict) for k, v in self.resname_dict.items()}
+    ave_resdict = {k: v/len(self.gol_selection_dict) for k, v in self.resname_dict.items()}
     print(ave_resdict) 
 #-----------------------------------------------------------------------------
-  def max_res(self):
+  def max_min_res(self):
     '''
-  maximum  of residues nearby GOL
+    maximum and minimum of residues nearby GOL
     '''
-    make_sub_header('Getting maximum residues', out=self.logger)  
-    max =  [key for key in self.res_dict if 
+    make_sub_header('Getting maximum and minimum residues', out=self.logger)  
+    maximum =  [key for key in self.res_dict if 
           all(self.res_dict[temp] <= self.res_dict[key]
           for temp in self.res_dict)]
-
-    print("Keys with maximum values are : " + str(max))
-#-----------------------------------------------------------------------------
-  def min_res(self):
-    '''
-  minimum of residues nearby GOL
-    '''
-    make_sub_header('Getting minimum residues', out=self.logger)    
-    min =  [key for key in self.res_dict if 
+            
+    minimum =  [key for key in self.res_dict if 
             all(self.res_dict[temp] >= self.res_dict[key]
             for temp in self.res_dict)]
     
-    print("Keys with minimum values are : " + str(min))
-
+    print("Keys with minimum values are : " + str(min),"Keys with maximum values are : " + str(max))
 #-----------------------------------------------------------------------------
 
 def perform_tests(self):
@@ -221,6 +203,5 @@ def perform_tests(self):
 if __name__ == '__main__':
   #
   from iotbx.cli_parser import run_program
-  run_program(program_class=AnalyseGol, args=["/Users/GalileeS/Desktop/test/1bg4.pdb"] )
-
+  run_program(program_class=AnalyseGol, args=["/Users/GalileeS/Desktop/test/1bg4.pdb"]  )
 # %%
