@@ -7,6 +7,7 @@ from libtbx.str_utils import make_sub_header
 
 import matplotlib as plt
 import io
+import json
 plt.use('Agg') # Must be before importing matplotlib.pyplot or pylab!
 from matplotlib import pyplot as plt
 import numpy as np
@@ -59,9 +60,10 @@ Script to do xxxxxx
     self.get_gol_selection()
     self.count_nearby_GOL()
     self.plot_counts()
-    self.ave_resdict()
+    self.ave_resdict_aa_dict()
     self.max_min_res()
-    self.aa_dict()
+    #self.aa_dict()
+    self.validate_gol()
    
 
   #-----------------------------------------------------------------------------
@@ -83,23 +85,54 @@ Script to do xxxxxx
             
               iselection = ag.atoms().extract_i_seq()
               sel_str_ligand = " ".join(['chain', chain.id, 'and resname', ag.resname, 'and resseq', rg.resseq])
-              b_max = 100
-  
-              atoms = ag.atoms()
-              ave = 0 
-            
-              for a in atoms:
-                ave = ave + a.b 
-              ave = ave/len(atoms) 
-      
-            
-              if ave > b_max:
-                continue
+             
               self.gol_selection_dict[sel_str_ligand] = iselection
 
+              
+    j_file = open("dataGOL.json", "w")
+    json_obect = json.dump(sel_str_ligand,j_file)
+    j_file.close() 
+  
     print(self.gol_selection_dict)
               
 #----------------------------------------------------------------------------
+  def validate_gol(self):
+    '''
+    validates the GOL selection and remives strutures that do no meet criteria
+    '''
+    make_sub_header('curate gol selection', out=self.logger)
+    
+    
+    for sel_str in self.gol_selection_dict.keys():
+      selection_bool1 = self.model.selection(sel_str)
+      m1 = self.model.select(selection_bool1)        
+      ph1 = m1.get_hierarchy()
+    
+      #print(m1.get_atoms().extract_name())
+      #print(list(m1.get_atoms().extract_occ()))
+
+      occ_list = list(m1.get_atoms().extract_occ())
+      if occ_list.count(occ_list[0]) != len(occ_list):
+        self.gol_selection_dict.pop(sel_str)
+        print("rejected occ_list:", occ_list)
+
+      # alternate method
+      # for item in occ_list:
+      #   if occ_list.count(occ_list[0]) != item:
+      #     self.gol_selection_dict.pop(sel_str)
+      #     print("rejected occ_list:", occ_list)
+
+      b_max = 10.0
+      ave = 0.0
+      b_iso_list = list(m1.get_atoms().extract_b())
+      for b in b_iso_list:
+        ave = ave + b
+        ave = ave/len(b_iso_list) 
+        if(ave > b_max):
+          self.gol_selection_dict.pop(sel_str)
+      #print(ave)
+    
+
   def count_nearby_GOL(self):
     '''
     counts the number of residues nearby GOL
@@ -133,8 +166,12 @@ Script to do xxxxxx
 
 
 
+    j_file = open("dataGOL.json", "w")
+    json_obect = json.dump(self.res_dict,j_file)
+    j_file.close()       
+
     print(self.res_dict)
-   
+    
    
 
 #-----------------------------------------------------------------------------
@@ -159,25 +196,35 @@ Script to do xxxxxx
 
   
 #-----------------------------------------------------------------------------
-  def aa_dict(self):
+  # def aa_dict(self):
+  #   '''
+  #   counts the number of amino acids nearby GOL
+  #   '''
+  #   make_sub_header('Getting amino acid counts ditionary', out=self.logger)  
+  #   self.aa_dict = {k: v for k, v in self.res_dict.items() }
+  #   self.aa_dict.pop('HOH')
+  #   self.aa_dict.pop('GOL')
+  #   self.aa_dict.pop('Other')
+  #   print(self.aa_dict)
+
+#-----------------------------------------------------------------------------
+  def ave_resdict_aa_dict(self):
     '''
-    counts the number of amino acids nearby GOL
+    average number of residues nearby GOL and the number of amino acids nearby GOL
     '''
-    make_sub_header('Getting amino acid counts ditionary', out=self.logger)  
+    make_sub_header('Getting average residue counts ditionary and the number of amino acids nearby GOL', out=self.logger)  
+    ave_resdict = {k: v/len(self.gol_selection_dict) for k, v in self.resname_dict.items()}
+
     self.aa_dict = {k: v for k, v in self.res_dict.items() }
     self.aa_dict.pop('HOH')
     self.aa_dict.pop('GOL')
     self.aa_dict.pop('Other')
-    print(self.aa_dict)
 
-#-----------------------------------------------------------------------------
-  def ave_resdict(self):
-    '''
-    average number of residues nearby GOL
-    '''
-    make_sub_header('Getting average residue counts ditionary', out=self.logger)  
-    ave_resdict = {k: v/len(self.gol_selection_dict) for k, v in self.resname_dict.items()}
-    print(ave_resdict) 
+    # j_file = open("dataGOL.json", "w")
+    # json_obect = json.dump(ave_resdict,j_file)
+    # j_file.close()  
+   
+    print("Average residues nearby GOL", ave_resdict," Amino acids nearby GOL: ", self.aa_dict) 
 #-----------------------------------------------------------------------------
   def max_min_res(self):
     '''
@@ -191,6 +238,7 @@ Script to do xxxxxx
     minimum =  [key for key in self.res_dict if 
             all(self.res_dict[temp] >= self.res_dict[key]
             for temp in self.res_dict)]
+
     
     print("Keys with minimum values are : " + str(min),"Keys with maximum values are : " + str(max))
 #-----------------------------------------------------------------------------
