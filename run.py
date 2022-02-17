@@ -64,9 +64,17 @@ Script to do xxxxxx
     self.max_min_res()
     #self.aa_dict()
     self.validate_gol()
-   
+    self.json_data = {}
+    self.save_json()
 
   #-----------------------------------------------------------------------------
+  def save_json(self):
+    j_file = open("dataGOL.json", "w")
+    json_obect = json.dump(self.json_data,j_file)
+    j_file.close() 
+
+
+
 
   def get_gol_selection(self):
     '''
@@ -89,9 +97,7 @@ Script to do xxxxxx
               self.gol_selection_dict[sel_str_ligand] = iselection
 
               
-    j_file = open("dataGOL.json", "w")
-    json_obect = json.dump(sel_str_ligand,j_file)
-    j_file.close() 
+
   
     print(self.gol_selection_dict)
               
@@ -102,36 +108,51 @@ Script to do xxxxxx
     '''
     make_sub_header('curate gol selection', out=self.logger)
     
-    
+    bad_selection=[]
+   
     for sel_str in self.gol_selection_dict.keys():
       selection_bool1 = self.model.selection(sel_str)
       m1 = self.model.select(selection_bool1)        
       ph1 = m1.get_hierarchy()
-    
-      #print(m1.get_atoms().extract_name())
-      #print(list(m1.get_atoms().extract_occ()))
 
       occ_list = list(m1.get_atoms().extract_occ())
-      if occ_list.count(occ_list[0]) != len(occ_list):
-        self.gol_selection_dict.pop(sel_str)
-        print("rejected occ_list:", occ_list)
+      mmm = m1.get_atoms().extract_occ().min_max_mean()
+      if occ_list.count(mmm.min != mmm.max):
+        bad_selection.append(sel_str)
 
-      # alternate method
-      # for item in occ_list:
-      #   if occ_list.count(occ_list[0]) != item:
-      #     self.gol_selection_dict.pop(sel_str)
-      #     print("rejected occ_list:", occ_list)
-
-      b_max = 10.0
-      ave = 0.0
-      b_iso_list = list(m1.get_atoms().extract_b())
-      for b in b_iso_list:
-        ave = ave + b
-        ave = ave/len(b_iso_list) 
-        if(ave > b_max):
-          self.gol_selection_dict.pop(sel_str)
-      #print(ave)
+      b_max = 100.0
+      mmm = m1.get_atoms().extract_b().min_max_mean()
+      if  mmm.mean > b_max:
+       ave_b = mmm.mean 
+       bad_selection.append(sel_str)
+      
+    for s in bad_selection:
+      if s in self.gol_selection_dict:
+       self.gol_selection_dict.pop(s)
     
+    print("out of range:", self.gol_selection_dict,"selections removed: ",  bad_selection)
+
+    # another  test   
+      # b_iso_flex = m1.get_atoms().extract_b()
+      # b_large = b_iso_flex.all_ge(80)
+      # if b_large == True:
+      #   print("b values out of range: ", list(b_iso_flex))
+
+    # alternate methods to validate occupancy and b iso
+    # for item in occ_list:
+    #   if occ_list.count(occ_list[0]) != item:
+    #     self.gol_selection_dict.pop(sel_str)
+    #     print("rejected occ_list:", occ_list)
+
+    #  b_max = 100.0
+    #  ave = 0.0 
+    #  b_iso_list = list(m1.get_atoms().extract_b())
+    #  for b in b_iso_list:
+    #    ave = ave + b
+    #  ave = ave/len(b_iso_list) 
+    #  if(ave > b_max):
+    #    self.gol_selection_dict.pop(sel_str)
+ #---------------------------------------------------------------------------- 
 
   def count_nearby_GOL(self):
     '''
@@ -163,12 +184,8 @@ Script to do xxxxxx
             self.res_dict[aa] += i
         if k not in res_list:
           self.res_dict["Other"] += i
-
-
-
-    j_file = open("dataGOL.json", "w")
-    json_obect = json.dump(self.res_dict,j_file)
-    j_file.close()       
+          
+    #self.json_data["resdict"] = self.res_dict      
 
     print(self.res_dict)
     
@@ -188,11 +205,10 @@ Script to do xxxxxx
     plt.xlabel('Name of Amino Acid')
 
     spacing = 0.500
-    #fileobject1 = io.BytesIO()
+   
     plt.savefig('bla.png')
     plt.close()
-    # fileobject1 = io.BytesIO()
-    # plt.savefig(fileobject1 ,format="svg")
+    
 
   
 #-----------------------------------------------------------------------------
@@ -219,10 +235,6 @@ Script to do xxxxxx
     self.aa_dict.pop('HOH')
     self.aa_dict.pop('GOL')
     self.aa_dict.pop('Other')
-
-    # j_file = open("dataGOL.json", "w")
-    # json_obect = json.dump(ave_resdict,j_file)
-    # j_file.close()  
    
     print("Average residues nearby GOL", ave_resdict," Amino acids nearby GOL: ", self.aa_dict) 
 #-----------------------------------------------------------------------------
@@ -254,5 +266,5 @@ def perform_tests(self):
 if __name__ == '__main__':
   #
   from iotbx.cli_parser import run_program
-  run_program(program_class=AnalyseGol, args=["/Users/GalileeS/Desktop/test/1bg4.pdb"]  )
+  run_program(program_class=AnalyseGol, args=["/Users/GalileeS/Desktop/test/test.pdb"]  )
 # %%
