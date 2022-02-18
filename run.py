@@ -119,18 +119,22 @@ Script to do xxxxxx
       mmm = m1.get_atoms().extract_occ().min_max_mean()
       if occ_list.count(mmm.min != mmm.max):
         bad_selection.append(sel_str)
+      
+      occ_min = .2
+      mmm = m1.get_atoms().extract_occ().min_max_mean()
+      if  mmm.mean < occ_min:
+       bad_selection.append(sel_str)
 
       b_max = 100.0
       mmm = m1.get_atoms().extract_b().min_max_mean()
       if  mmm.mean > b_max:
-       ave_b = mmm.mean 
        bad_selection.append(sel_str)
       
     for s in bad_selection:
       if s in self.gol_selection_dict:
        self.gol_selection_dict.pop(s)
     
-    print("out of range:", self.gol_selection_dict,"selections removed: ",  bad_selection)
+    print(self.gol_selection_dict,"selections removed: ",  bad_selection)
 
     # another  test   
       # b_iso_flex = m1.get_atoms().extract_b()
@@ -152,7 +156,7 @@ Script to do xxxxxx
     #  ave = ave/len(b_iso_list) 
     #  if(ave > b_max):
     #    self.gol_selection_dict.pop(sel_str)
- #---------------------------------------------------------------------------- 
+  
 
   def count_nearby_GOL(self):
     '''
