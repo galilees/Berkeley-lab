@@ -55,6 +55,7 @@ Script to do xxxxxx
     if self.params.mode == 'test':
       self.perform_tests()
       return
+    self.json_data = {}
     #
     self.model = self.data_manager.get_model()
     self.get_gol_selection()
@@ -64,7 +65,6 @@ Script to do xxxxxx
     self.max_min_res()
     #self.aa_dict()
     self.validate_gol()
-    self.json_data = {}
     self.save_json()
 
   #-----------------------------------------------------------------------------
@@ -97,7 +97,8 @@ Script to do xxxxxx
               self.gol_selection_dict[sel_str_ligand] = iselection
 
               
-
+    self.json_data['gol_selection_strings'] = self.gol_selection_dict.keys()
+    self.save_json()
   
     print(self.gol_selection_dict)
               
@@ -189,7 +190,8 @@ Script to do xxxxxx
         if k not in res_list:
           self.res_dict["Other"] += i
           
-    #self.json_data["resdict"] = self.res_dict      
+    self.json_data["residue counts"] = self.res_dict
+    self.save_json()      
 
     print(self.res_dict)
     
