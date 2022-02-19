@@ -66,6 +66,7 @@ Script to do xxxxxx
     #self.aa_dict()
     self.validate_gol()
     self.save_json()
+    self.res_nearby()
 
   #-----------------------------------------------------------------------------
   def save_json(self):
@@ -97,7 +98,7 @@ Script to do xxxxxx
               self.gol_selection_dict[sel_str_ligand] = iselection
 
               
-    self.json_data['gol_selection_strings'] = self.gol_selection_dict.keys()
+    self.json_data['gol_selection_strings'] = list(self.gol_selection_dict.keys())
     self.save_json()
   
     print(self.gol_selection_dict)
@@ -105,7 +106,7 @@ Script to do xxxxxx
 #----------------------------------------------------------------------------
   def validate_gol(self):
     '''
-    validates the GOL selection and remives strutures that do no meet criteria
+    removes strutures from GOL selection that do no meet criteria
     '''
     make_sub_header('curate gol selection', out=self.logger)
     
@@ -135,7 +136,7 @@ Script to do xxxxxx
       if s in self.gol_selection_dict:
        self.gol_selection_dict.pop(s)
     
-    print(self.gol_selection_dict,"selections removed: ",  bad_selection)
+    print("selections removed: ",  bad_selection)
 
     # another  test   
       # b_iso_flex = m1.get_atoms().extract_b()
@@ -145,7 +146,7 @@ Script to do xxxxxx
 
     # alternate methods to validate occupancy and b iso
     # for item in occ_list:
-    #   if occ_list.count(occ_list[0]) != item:
+    #   if occ_list.coxunt(occ_list[0]) != item:
     #     self.gol_selection_dict.pop(sel_str)
     #     print("rejected occ_list:", occ_list)
 
@@ -157,7 +158,33 @@ Script to do xxxxxx
     #  ave = ave/len(b_iso_list) 
     #  if(ave > b_max):
     #    self.gol_selection_dict.pop(sel_str)
-  
+#----------------------------------------------------------------------------  
+
+  def res_nearby(self):
+    '''
+   counts the residues nearby each GOL selection
+    '''
+    make_sub_header('count of residues nearby each GOL', out=self.logger)
+    
+    selection_list = []
+    for sel_str in self.gol_selection_dict.keys():
+                
+      selection_list.append(sel_str)
+      near = 'within(5,%s)'%sel_str
+      selection_bool1 = self.model.selection(near)
+      m1 = self.model.select(selection_bool1)        
+
+          
+      near_res = 'residues_within(5,%s)'%sel_str
+      selection_bool2 = self.model.selection(near_res)
+      m2 = self.model.select(selection_bool2) 
+      ph2 = m2.get_hierarchy()
+      res_nearby = ph2.overall_counts().resnames
+      print(res_nearby)
+
+    return selection_list
+
+  #----------------------------------------------------------------------------  
 
   def count_nearby_GOL(self):
     '''
@@ -190,20 +217,18 @@ Script to do xxxxxx
         if k not in res_list:
           self.res_dict["Other"] += i
           
-    self.json_data["residue counts"] = self.res_dict
-    self.save_json()      
+      
 
     print(self.res_dict)
-    
-   
 
+  
 #-----------------------------------------------------------------------------
 
   def plot_counts(self):
     '''
     plots the counts of residues nearby GOL
     '''  
-   
+    
     plt.bar(list(self.res_dict.keys()), self.res_dict.values(), color='r')
     plt.title('Nearby Amono Acids Count', y=1.16, fontsize=14)
 
@@ -211,13 +236,13 @@ Script to do xxxxxx
     plt.xlabel('Name of Amino Acid')
 
     spacing = 0.500
-   
+    
     plt.savefig('bla.png')
     plt.close()
     
 
-  
-#-----------------------------------------------------------------------------
+
+  #-----------------------------------------------------------------------------
   # def aa_dict(self):
   #   '''
   #   counts the number of amino acids nearby GOL
@@ -229,7 +254,7 @@ Script to do xxxxxx
   #   self.aa_dict.pop('Other')
   #   print(self.aa_dict)
 
-#-----------------------------------------------------------------------------
+  #-----------------------------------------------------------------------------
   def ave_resdict_aa_dict(self):
     '''
     average number of residues nearby GOL and the number of amino acids nearby GOL
@@ -241,9 +266,9 @@ Script to do xxxxxx
     self.aa_dict.pop('HOH')
     self.aa_dict.pop('GOL')
     self.aa_dict.pop('Other')
-   
+    
     print("Average residues nearby GOL", ave_resdict," Amino acids nearby GOL: ", self.aa_dict) 
-#-----------------------------------------------------------------------------
+  #-----------------------------------------------------------------------------
   def max_min_res(self):
     '''
     maximum and minimum of residues nearby GOL
@@ -272,5 +297,5 @@ def perform_tests(self):
 if __name__ == '__main__':
   #
   from iotbx.cli_parser import run_program
-  run_program(program_class=AnalyseGol, args=["/Users/GalileeS/Desktop/test/test.pdb"]  )
+  run_program(program_class=AnalyseGol)
 # %%
