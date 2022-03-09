@@ -54,12 +54,12 @@ Script to do xxxxxx
     '''
     Code below will be executed
     '''
-    print('here we go', file=self.logger)
     self.success = True
     #
-    print(self.data_manager.get_default_model_name())
     print('Using file %s' % self.data_manager.get_default_model_name())
-    
+    #
+    self.initialize()
+    #
     if self.params.mode == 'test':
       self.perform_tests()
       return
@@ -71,36 +71,38 @@ Script to do xxxxxx
     except Exception as e:
       self.success   = False
       print('failed to get GOL selection.\n' , file=self.logger)
-      #self.save_json()
-    
-    self.count_nearby() # overall count of residues near selection for entire protein
-    self.plot_counts()
-    self.ave_resdict_aa_dict()
-    self.max_min_res()
-    #self.aa_dict()
-    self.validate_gol()
-    #self.save_json()
+       
+      self.validate_gol()
     self.res_nearby_count()
-
+    self.save_json
     self.get_hbonds()
-
-    # self.get_selection("HOH")
-    # self.res_nearby_count()
+   
     # self.count_nearby() # overall count of residues near selection for entire protein
+    # self.plot_counts()
+    # #self.ave_resdict_aa_dict()
+    # self.max_min_res()
+    # #self.aa_dict()
+
 
   #-----------------------------------------------------------------------------
 
-  def save_json(self):
-    self.json_data['success'] = self.success
-    basename, extension = os.path.splitext(os.path.basename(self.data_manager.get_default_model_name()))
-    json_filename = basename + '_dataHOH.json'
-    #json_filename = 'bla'+ '_dataGOL.json'
-    #j_file = open("dataGOL.json", "w")
-    #json_obect = json.dump(self.json_data,json_filename)
-    #json_filename.close()
+  def initialize(self):
+    '''
+    inistialze data structures.
+    '''
+    self.selection_dict = {}
+    self.nearby_residue_dict = {}
+    self.res_dict = {}
 
-    with open(json_filename, 'w') as fp:
-      json.dump(self.json_data, fp, sort_keys=True, indent=4)
+#-----------------------------------------------------------------------------
+  def save_json(self):
+      self.json_data['success'] = self.success
+      basename, extension = os.path.splitext(os.path.basename(self.data_manager.get_default_model_name()))
+      json_filename = basename + '_dataGOL.json'
+    
+      with open(json_filename, 'w') as fp:
+        json.dump(self.json_data, fp, sort_keys=True, indent=4)
+
 
   #-----------------------------------------------------------------------------
 
@@ -109,9 +111,11 @@ Script to do xxxxxx
     Searches within a radius of 5 angstroms for hydrogen bonds to glycerol and returns a list of tuples containing the isequences of hbond partners 
     '''
     make_sub_header('H-bonds', out=self.logger)
-    i = 0
+    iselection_list = []
+    hbonds_List=[]
+    iselection_dict = {}
     for sel_str in self.selection_dict.keys():
-      #print(sel_str)
+      print('Now looking at ', sel_str)
       near_res = 'residues_within(5,%s)'%sel_str
       selection_bool2 = self.model.selection(near_res)
       m2 = self.model.select(selection_bool2)
@@ -119,44 +123,32 @@ Script to do xxxxxx
       m2.process(make_restraints=True)
 
       pnps = pnp.manager(model = m2)
-
-      i += 1
-      if i > 1: break
-
+    
       hbonds = pnps.get_hbonds()
-      hbonds.show(log=sys.stdout)
-      print("tuple keys to hbonds table: ", hbonds._hbonds_dict.keys())
+      hbonds.show(log=sys.stdout) 
+      print("tuple keys to hbonds table: ", hbonds._hbonds_dict.keys()) #Show tuple index to table
+      hierarchy = m2.get_hierarchy()
 
-
-    hierarchy = m2.get_hierarchy()
-    self.iselection_dict ={}
-
-    for m in hierarchy.models():            # Get hierarchy object
-      for chain in m.chains():              # loop over chain, residue group, and atom group 
-        for rg in chain.residue_groups():
-          for ag in rg.atom_groups():
-            
-            if (ag.resname == "GOL"):      
-          
-              iselection = ag.atoms().extract_i_seq()
-
-              sel_str = " ".join(['chain', chain.id, 'and resname', ag.resname, 'and resseq', rg.resseq])
-             
-              self.iselection_dict[sel_str] = list(iselection)
-
-    print("dictionary of glycerols in m2 and their isequences: " , self.iselection_dict)
-    iselection_list = list(self.iselection_dict.values())
-    iselection_list_flat = list(np.concatenate(iselection_list).flat)
-    hbonds_List=[]
-    for tuple in list(hbonds._hbonds_dict.keys()):
-      for iseq in tuple:
-        if iseq in iselection_list_flat:
-          if tuple not in hbonds_List: 
-            hbonds_List.append(tuple)
-            #print(tuple , " : " , hbonds._hbonds_dict.get(tuple))
-    print("list of tuples containing isequences for GOL hbonds: " , hbonds_List)
-
+      for m in hierarchy.models():            # Get hierarchy object
+        for chain in m.chains():              # loop over chain, residue group, and atom group
+          for rg in chain.residue_groups():
+            for ag in rg.atom_groups():
+              if (ag.resname == "GOL"):
+                iselection = ag.atoms().extract_i_seq()
+                iselection_dict[sel_str] = iselection
+      for k,v in iselection_dict.items():
+        iselection_list.append(list(v))
+        iselection_list_flat = list(np.concatenate(iselection_list).flat)
+      
+      for iseq_tuple in list(hbonds._hbonds_dict.keys()):
+        for iseq in iseq_tuple:
+          if iseq in iselection_list_flat:
+            if iseq_tuple not in hbonds_List:
+              hbonds_List.append(iseq_tuple)
+    print("list of tuples containing isequences of glycerols with hbonds: ", hbonds_List)
+    
  #-----------------------------------------------------------------------------  
+
   def get_selection(self, residue):
     '''
     residue:str
@@ -164,7 +156,7 @@ Script to do xxxxxx
     Prints a dictionary with the selection string as the key and iselection for the residue as the value.
     '''
     make_sub_header('Getting selection for residue', out=self.logger)
-    self.selection_dict ={}
+
     print(residue)
     hierarchy = self.model.get_hierarchy()
     for m in hierarchy.models():            # Get hierarchy object
@@ -183,7 +175,8 @@ Script to do xxxxxx
       self.json_data['selection_strings'] = list(self.selection_dict.keys())
       self.save_json()
     
-    #print(self.selection_dict)
+    for sel_str in self.selection_dict.keys():
+      print(sel_str)
     
               
 #----------------------------------------------------------------------------
@@ -237,7 +230,7 @@ Script to do xxxxxx
     '''
     make_sub_header('count of residues nearby each selection', out=self.logger)
     
-    gol_nearby_residue_dict = {}
+    
     for sel_str in self.selection_dict.keys():
      
       near_res = 'residues_within(5,%s)'%sel_str
@@ -246,13 +239,14 @@ Script to do xxxxxx
       ph = m.get_hierarchy()
       res_nearby = ph.overall_counts().resnames
       print(res_nearby, file=self.logger)
-      gol_nearby_residue_dict[sel_str] = res_nearby
+      self.nearby_residue_dict[sel_str] = res_nearby
       #self.json_data['nearby_res'] = res_nearby
       #self.save_json()
 
-    self.json_data['nearby_res'] = gol_nearby_residue_dict
+    self.json_data['nearby_res'] = self.nearby_residue_dict
     self.save_json()
-    return res_nearby
+  
+    #return res_nearby
 
   #----------------------------------------------------------------------------  
 
@@ -275,7 +269,7 @@ Script to do xxxxxx
       resname_dict_list.append(dict_neighbors)
     
     res_list = ["Other","HOH","GOL","LYS", "ASN", "TRP", "ASP","GLU","GLN","ALA","SER","HIS","THR","TYR","PHE","ARG","VAL","GLY","CYS","PRO","ILE","MET"]
-    self.res_dict = {}
+
     for aa in res_list:
         self.res_dict[aa] = 0
 
