@@ -93,6 +93,7 @@ Script to do xxxxxx
     self.selection_dict = {}
     self.nearby_residue_dict = {}
     self.res_dict = {}
+    self.gol_hbonds_dict = {}
 
 #-----------------------------------------------------------------------------
   def save_json(self):
@@ -111,8 +112,8 @@ Script to do xxxxxx
     Searches within a radius of 5 angstroms for hydrogen bonds to glycerol and returns a list of tuples containing the isequences of hbond partners 
     '''
     make_sub_header('H-bonds', out=self.logger)
-    iselection_list = []
-    hbonds_List=[]
+  
+    hbonds_list=[]
     iselection_dict = {}
     for sel_str in self.selection_dict.keys():
       print('Now looking at ', sel_str)
@@ -127,25 +128,54 @@ Script to do xxxxxx
       hbonds = pnps.get_hbonds()
       hbonds.show(log=sys.stdout) 
       print("tuple keys to hbonds table: ", hbonds._hbonds_dict.keys()) #Show tuple index to table
-      hierarchy = m2.get_hierarchy()
-
-      for m in hierarchy.models():            # Get hierarchy object
-        for chain in m.chains():              # loop over chain, residue group, and atom group
-          for rg in chain.residue_groups():
-            for ag in rg.atom_groups():
-              if (ag.resname == "GOL"):
-                iselection = ag.atoms().extract_i_seq()
-                iselection_dict[sel_str] = iselection
-      for k,v in iselection_dict.items():
-        iselection_list.append(list(v))
-        iselection_list_flat = list(np.concatenate(iselection_list).flat)
-      
+    
+      iselection_list = list(m2.iselection(sel_str))
+     
       for iseq_tuple in list(hbonds._hbonds_dict.keys()):
+
         for iseq in iseq_tuple:
-          if iseq in iselection_list_flat:
-            if iseq_tuple not in hbonds_List:
-              hbonds_List.append(iseq_tuple)
-    print("list of tuples containing isequences of glycerols with hbonds: ", hbonds_List)
+          if iseq in iselection_list:
+            gol_iseq_tuple = iseq_tuple
+            hbonds_dict_value = hbonds._hbonds_dict.get(gol_iseq_tuple)
+            self.gol_hbonds_dict[gol_iseq_tuple] = hbonds_dict_value
+            if gol_iseq_tuple not in hbonds_list:
+              hbonds_list.append(gol_iseq_tuple)
+          else:
+            break
+                
+    
+    print("list of tuples containing isequences of glycerols with hbonds: ", hbonds_list)
+    print("gol bonds dict" , self.gol_hbonds_dict)
+
+    result_str = '{:<18} : {:5d}'
+    # print table with all H-bonds
+    title1 = ['donor', 'acceptor', 'distance', 'angle']
+    title1_str = '{:^33}|{:^16}|{:^21}|{:^14}|'
+    print('\n' + title1_str.format(*title1))
+    title2 =  ['X', 'H', 'A','H...A','X...A',
+              'X-H...A', 'symop']
+    title2_str = '{:^16}|{:^16}|{:^16}|{:^10}|{:^10}|{:^14}|{:^15}|'
+    print(title2_str.format(*title2))
+    table_str = '{:>16}|{:>16}|{:^16}|{:^10.2f}|{:^10.2f}|{:^14.2f}|{:^15}|'
+    print('-'*99)
+    atoms = self.model.get_atoms()
+    for iseq_tuple, record in self.gol_hbonds_dict.items():
+      iseq_x, iseq_h, iseq_a = iseq_tuple
+      if record[4] is not None:
+        symop = record[4]
+      else: symop = ''
+      x_id_str = atoms[iseq_x].id_str().replace('pdb=','').replace('"','')
+      h_id_str = atoms[iseq_h].id_str().replace('pdb=','').replace('"','')
+      a_id_str = atoms[iseq_a].id_str().replace('pdb=','').replace('"','')
+      line = [x_id_str, h_id_str, a_id_str, round(record[0], 2),
+        round(record[1], 2), round(record[2], 2), symop]
+      print(table_str.format(*line))
+    print('-'*99)
+
+
+
+    
+      
     
  #-----------------------------------------------------------------------------  
 
