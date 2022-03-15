@@ -8,6 +8,8 @@ from libtbx.str_utils import make_sub_header
 
 import cctbx.geometry_restraints.process_nonbonded_proxies as pnp
 from libtbx.utils import Sorry, null_out
+import mmtbx.secondary_structure
+from scitbx.array_family import flex
 
 import matplotlib as plt
 import json, os, sys
@@ -72,11 +74,32 @@ Script to do xxxxxx
       self.success   = False
       print('failed to get GOL selection.\n' , file=self.logger)
        
-      self.validate_gol()
+    self.validate_gol()
     self.res_nearby_count()
     self.save_json
     self.get_hbonds()
-   
+
+    pdb_hierarchy = self.model.get_hierarchy()
+    sec_str_from_pdb_file = self.model.get_ss_annotation()
+    # get secodary structure annotation vector from HELIX/SHEET records (file header)
+    print('Running secondary structure annotation...')
+    v1 = self.get_ss(
+      hierarchy             = pdb_hierarchy,
+      sec_str_from_pdb_file = sec_str_from_pdb_file)
+    # get secodary structure annotation vector from method CA atoms
+    v2 = self.get_ss(hierarchy = pdb_hierarchy, method = "from_ca")
+    # secodary structure annotation vector from KSDSSP
+    v3 = self.get_ss(hierarchy = pdb_hierarchy, method = "ksdssp")
+    #
+    print()
+    print("CC REMARK vs from_ca:", flex.linear_correlation(x = v1, y = v2).coefficient())
+    print("CC REMARK vs ksdssp:", flex.linear_correlation(x = v1, y = v3).coefficient())
+    print("CC from_ca vs ksdssp:", flex.linear_correlation(x = v3, y = v2).coefficient())
+    print()
+    print("match REMARK vs from_ca:", self.match_score(x = v1, y = v2))
+    print("match REMARK vs ksdssp:", self.match_score(x = v1, y = v3))
+    print("match from_ca vs ksdssp:", self.match_score(x = v3, y = v2))
+    
     # self.count_nearby() # overall count of residues near selection for entire protein
     # self.plot_counts()
     # #self.ave_resdict_aa_dict()
@@ -105,48 +128,43 @@ Script to do xxxxxx
         json.dump(self.json_data, fp, sort_keys=True, indent=4)
 
 
-  #-----------------------------------------------------------------------------
+#-----------------------------------------------------------------------------
 
-  def get_hbonds(self):
+  def get_ss(hierarchy,
+           sec_str_from_pdb_file=None,
+           method="ksdssp",
+           use_recs=False):
+    if(use_recs): params = None
+    else:
+      params = mmtbx.secondary_structure.manager.get_default_ss_params()
+      params.secondary_structure.protein.search_method=method
+      params = params.secondary_structure
+    ssm = mmtbx.secondary_structure.manager(
+      pdb_hierarchy         = hierarchy,
+      sec_str_from_pdb_file = sec_str_from_pdb_file,
+      params                = params,
+      log                   = null_out())
+    alpha = ssm.helix_selection()
+    beta  = ssm.beta_selection()
+    assert alpha.size() == beta.size() == hierarchy.atoms().size()
+    annotation_vector = flex.double(hierarchy.atoms().size(), 0)
+    annotation_vector.set_selected(alpha, 1)
+    annotation_vector.set_selected(beta, 2)
+    return annotation_vector
+
+  def match_score(x,y):
+    assert x.size() == y.size()
+    match_cntr = 0
+    for x_,y_ in zip(x,y):
+      if(x_==y_): match_cntr+=1
+    return match_cntr/x.size()
+
+ #-----------------------------------------------------------------------------
+
+  def print_hbond_table(self, model, gol_hbonds_dict):
     '''
-    Searches within a radius of 5 angstroms for hydrogen bonds to glycerol and returns a list of tuples containing the isequences of hbond partners 
+    jghfjhdngf
     '''
-    make_sub_header('H-bonds', out=self.logger)
-  
-    hbonds_list=[]
-    iselection_dict = {}
-    for sel_str in self.selection_dict.keys():
-      print('Now looking at ', sel_str)
-      near_res = 'residues_within(5,%s)'%sel_str
-      selection_bool2 = self.model.selection(near_res)
-      m2 = self.model.select(selection_bool2)
-      m2.set_log(log = null_out())
-      m2.process(make_restraints=True)
-
-      pnps = pnp.manager(model = m2)
-    
-      hbonds = pnps.get_hbonds()
-      hbonds.show(log=sys.stdout) 
-      print("tuple keys to hbonds table: ", hbonds._hbonds_dict.keys()) #Show tuple index to table
-    
-      iselection_list = list(m2.iselection(sel_str))
-     
-      for iseq_tuple in list(hbonds._hbonds_dict.keys()):
-
-        for iseq in iseq_tuple:
-          if iseq in iselection_list:
-            gol_iseq_tuple = iseq_tuple
-            hbonds_dict_value = hbonds._hbonds_dict.get(gol_iseq_tuple)
-            self.gol_hbonds_dict[gol_iseq_tuple] = hbonds_dict_value
-            if gol_iseq_tuple not in hbonds_list:
-              hbonds_list.append(gol_iseq_tuple)
-          else:
-            break
-                
-    
-    print("list of tuples containing isequences of glycerols with hbonds: ", hbonds_list)
-    print("gol bonds dict" , self.gol_hbonds_dict)
-
     result_str = '{:<18} : {:5d}'
     # print table with all H-bonds
     title1 = ['donor', 'acceptor', 'distance', 'angle']
@@ -158,8 +176,9 @@ Script to do xxxxxx
     print(title2_str.format(*title2))
     table_str = '{:>16}|{:>16}|{:^16}|{:^10.2f}|{:^10.2f}|{:^14.2f}|{:^15}|'
     print('-'*99)
-    atoms = self.model.get_atoms()
-    for iseq_tuple, record in self.gol_hbonds_dict.items():
+    ###########
+    atoms = model.get_atoms()
+    for iseq_tuple, record in gol_hbonds_dict.items():
       iseq_x, iseq_h, iseq_a = iseq_tuple
       if record[4] is not None:
         symop = record[4]
@@ -172,10 +191,54 @@ Script to do xxxxxx
       print(table_str.format(*line))
     print('-'*99)
 
+  #-----------------------------------------------------------------------------
 
+  def get_hbonds(self):
+    '''
+    Searches within a radius of 5 angstroms for hydrogen bonds to glycerol and returns a list of tuples containing the isequences of hbond partners 
+    '''
+    make_sub_header('H-bonds', out=self.logger)
+  
+    hbonds_list=[]
+    iselection_dict = {}
+    _i = 0
+    for sel_str in self.selection_dict.keys():
+      _i += 1
+      #if _i > 1: break
+      print('Now looking at ', sel_str)
+      near_res = 'residues_within(5,%s)'%sel_str
+      selection_bool2 = self.model.selection(near_res)
+      m2 = self.model.select(selection_bool2)
+      m2.set_log(log = null_out())
+      m2.process(make_restraints=True)
 
+      pnps = pnp.manager(model = m2)
     
-      
+      hbonds = pnps.get_hbonds()
+      #hbonds.show(log=sys.stdout) # hide
+      print("tuple keys to hbonds table: ", hbonds._hbonds_dict.keys()) #Show tuple index to table
+    
+      # better name? gol_iseq_numbers
+      iselection_list = list(m2.iselection(sel_str))
+
+      gol_hbonds_dict = {}
+      for iseq_tuple in list(hbonds._hbonds_dict.keys()):
+        for iseq in iseq_tuple:
+          if iseq in iselection_list:
+            gol_iseq_tuple = iseq_tuple
+            hbonds_dict_value = hbonds._hbonds_dict.get(gol_iseq_tuple)
+            gol_hbonds_dict[gol_iseq_tuple] = hbonds_dict_value
+            if gol_iseq_tuple not in hbonds_list:
+              hbonds_list.append(gol_iseq_tuple)
+          else:
+            break
+
+      self.print_hbond_table(model           = m2,
+                             gol_hbonds_dict = gol_hbonds_dict)
+
+      self.json_data['number of Hbonds involving GOL: '] = len(gol_hbonds_dict.keys())
+      self.save_json()
+      print('number of Hbonds involving GOL: ', len(gol_hbonds_dict.keys()))
     
  #-----------------------------------------------------------------------------  
 
