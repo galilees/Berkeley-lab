@@ -88,6 +88,7 @@ Script to do xxxxxx
       print('failed to get res nearby count for selection.\n' , file=self.logger)
       self.json_data['nearby_res'] = {}
       self.save_json()
+  #
   
     # try:
     #   self.get_hbonds()
