@@ -73,38 +73,46 @@ Script to do xxxxxx
     except Exception as e:
       self.success   = False
       print('failed to get GOL selection.\n' , file=self.logger)
+      self.json_data['selection_strings'] = []
+      self.save_json()
+    try:  
+      self.validate_gol()
+    except Exception as e:
+      self.success   = False
+      print('failed to validate gol selection.\n' , file=self.logger)
+     
+    try:  
+      self.res_nearby_count()
+    except Exception as e:
+      self.success   = False
+      print('failed to get res nearby count for selection.\n' , file=self.logger)
+      self.json_data['nearby_res'] = {}
+      self.save_json()
+  
+    # try:
+    #   self.get_hbonds()
+    # except Exception as e:
+    #   self.success   = False
+    #   print('failed to get hbonds for selection.\n' , file=self.logger)
+    #   self.json_data['number of Hbonds involving GOL: '] = {}
+    #   self.save_json()
        
-    self.validate_gol()
-    self.res_nearby_count()
-    self.save_json
-    self.get_hbonds()
 
+    
     pdb_hierarchy = self.model.get_hierarchy()
     sec_str_from_pdb_file = self.model.get_ss_annotation()
+
     # get secodary structure annotation vector from HELIX/SHEET records (file header)
     print('Running secondary structure annotation...')
-    v1 = self.get_ss(
-      hierarchy             = pdb_hierarchy,
-      sec_str_from_pdb_file = sec_str_from_pdb_file)
-    # get secodary structure annotation vector from method CA atoms
-    v2 = self.get_ss(hierarchy = pdb_hierarchy, method = "from_ca")
-    # secodary structure annotation vector from KSDSSP
-    v3 = self.get_ss(hierarchy = pdb_hierarchy, method = "ksdssp")
-    #
-    print()
-    print("CC REMARK vs from_ca:", flex.linear_correlation(x = v1, y = v2).coefficient())
-    print("CC REMARK vs ksdssp:", flex.linear_correlation(x = v1, y = v3).coefficient())
-    print("CC from_ca vs ksdssp:", flex.linear_correlation(x = v3, y = v2).coefficient())
-    print()
-    print("match REMARK vs from_ca:", self.match_score(x = v1, y = v2))
-    print("match REMARK vs ksdssp:", self.match_score(x = v1, y = v3))
-    print("match from_ca vs ksdssp:", self.match_score(x = v3, y = v2))
+    v1 = self.get_ss(hierarchy             = pdb_hierarchy,
+                     sec_str_from_pdb_file = sec_str_from_pdb_file)
+
     
-    # self.count_nearby() # overall count of residues near selection for entire protein
-    # self.plot_counts()
-    # #self.ave_resdict_aa_dict()
-    # self.max_min_res()
-    # #self.aa_dict()
+    # # self.count_nearby() # overall count of residues near selection for entire protein
+    # # self.plot_counts()
+    # # #self.ave_resdict_aa_dict()
+    # # self.max_min_res()
+    # # #self.aa_dict()
 
 
   #-----------------------------------------------------------------------------
@@ -117,6 +125,12 @@ Script to do xxxxxx
     self.nearby_residue_dict = {}
     self.res_dict = {}
     self.gol_hbonds_dict = {}
+    self.hbonds_dict = {}
+    self.json_data = {}
+    self.json_data['number of Hbonds involving GOL: '] = {}
+    self.json_data['nearby_res'] = {}
+   
+   
 
 #-----------------------------------------------------------------------------
   def save_json(self):
@@ -130,7 +144,8 @@ Script to do xxxxxx
 
 #-----------------------------------------------------------------------------
 
-  def get_ss(hierarchy,
+  def get_ss(self,
+           hierarchy,
            sec_str_from_pdb_file=None,
            method="ksdssp",
            use_recs=False):
@@ -144,26 +159,54 @@ Script to do xxxxxx
       sec_str_from_pdb_file = sec_str_from_pdb_file,
       params                = params,
       log                   = null_out())
+    #print(ssm.records_for_pdb_file())
     alpha = ssm.helix_selection()
     beta  = ssm.beta_selection()
+    #print(list(alpha))
+
+    #print(dir(ssm))
+    #STOP()
+
     assert alpha.size() == beta.size() == hierarchy.atoms().size()
     annotation_vector = flex.double(hierarchy.atoms().size(), 0)
     annotation_vector.set_selected(alpha, 1)
     annotation_vector.set_selected(beta, 2)
+
+    #records = ssm.records_for_pdb_file()
+    #print(records)
+    sel_str = 'chain A and resname GOL and resseq  630'
+    near_res = 'residues_within(5,%s)'%sel_str
+    selection_bool2 = self.model.selection(near_res)
+    m2 = self.model.select(selection_bool2)
+
+    m2.set_ss_annotation(ann = sec_str_from_pdb_file)
+    print(m2.model_as_pdb())
+    # sec_str_from_m2 = m2.get_ss_annotation()
+    # print(sec_str_from_m2)
+    params = mmtbx.secondary_structure.manager.get_default_ss_params()
+    params.secondary_structure.protein.search_method="ksdssp"
+    params = params.secondary_structure
+    params = None
+    ssm = mmtbx.secondary_structure.manager(
+      pdb_hierarchy         = m2.get_hierarchy(),
+      sec_str_from_pdb_file = sec_str_from_pdb_file,
+      params                = params,
+      log                   = null_out())
+   
+    print(ssm.helix_selection().count(True))
+    print(len(ssm.helix_selection()))
+    print(ssm.get_helix_types)
+    print(ssm.find_approximate_helices())
+
     return annotation_vector
 
-  def match_score(x,y):
-    assert x.size() == y.size()
-    match_cntr = 0
-    for x_,y_ in zip(x,y):
-      if(x_==y_): match_cntr+=1
-    return match_cntr/x.size()
+
 
  #-----------------------------------------------------------------------------
 
   def print_hbond_table(self, model, gol_hbonds_dict):
     '''
-    jghfjhdngf
+    takes in the model and a dictionary of hbonds and prints the table associated with the hbonds
     '''
     result_str = '{:<18} : {:5d}'
     # print table with all H-bonds
@@ -197,8 +240,9 @@ Script to do xxxxxx
     '''
     Searches within a radius of 5 angstroms for hydrogen bonds to glycerol and returns a list of tuples containing the isequences of hbond partners 
     '''
-    make_sub_header('H-bonds', out=self.logger)
   
+    make_sub_header('H-bonds', out=self.logger)
+   
     hbonds_list=[]
     iselection_dict = {}
     _i = 0
@@ -235,10 +279,12 @@ Script to do xxxxxx
 
       self.print_hbond_table(model           = m2,
                              gol_hbonds_dict = gol_hbonds_dict)
+      self.hbonds_dict[sel_str] = len(gol_hbonds_dict.keys())
 
-      self.json_data['number of Hbonds involving GOL: '] = len(gol_hbonds_dict.keys())
+      self.json_data['number of Hbonds involving GOL: '] = self.hbonds_dict
       self.save_json()
       print('number of Hbonds involving GOL: ', len(gol_hbonds_dict.keys()))
+     
     
  #-----------------------------------------------------------------------------  
 
@@ -249,7 +295,7 @@ Script to do xxxxxx
     Prints a dictionary with the selection string as the key and iselection for the residue as the value.
     '''
     make_sub_header('Getting selection for residue', out=self.logger)
-
+    
     print(residue)
     hierarchy = self.model.get_hierarchy()
     for m in hierarchy.models():            # Get hierarchy object
@@ -280,6 +326,7 @@ Script to do xxxxxx
     removes strutures from the selection dictionary that do no meet criteria. The b factor is out of range if it exceeds b_max and the occupancy is out of range if it is less than occ_min. 
     Also checks that all occupancies within the molecule are the same.
     '''
+
     make_sub_header('curate gol selection', out=self.logger)
     
     bad_selection=[]
@@ -443,11 +490,11 @@ Script to do xxxxxx
     print("Keys with minimum values are : " + str(minimum),"Keys with maximum values are : " + str(maximum))
 #-----------------------------------------------------------------------------
 
-def perform_tests(self):
-  '''
-  Here we could do tests.
-  '''
-  make_sub_header('Performing tests', out=self.logger)
+  def perform_tests(self):
+    '''
+    Here we could do tests.
+    '''
+    make_sub_header('Performing tests', out=self.logger)
 
 # =============================================================================
 
