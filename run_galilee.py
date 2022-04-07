@@ -109,7 +109,7 @@ class RunGenerate(ProgramTemplate):
 
     commands = list()
     #for pdb_code in pdb_code_list:
-    for pdb_code in pdb_code_list[:300]:
+    for pdb_code in pdb_code_list[:1000]:
       pdb_code = pdb_code.lower()
       #
       if (self.params.mode == 'one_cpu'):
@@ -226,13 +226,8 @@ class process_one_model():
       # self.json_data["sel_str"]["nearby_res"] = {} # TODO has to be adapted to current json structure
       self.save_json()
 
-    try:
-      self.add_H_atoms_with_reduce()
-    except Exception as e:
-      print('failed to run reduce.\n' , file=self.logger)
-      print(traceback.format_exc(), file=self.logger)
-      self.success   = False
-      self.save_json()
+
+
 
     self.get_hbonds()
 
@@ -258,7 +253,8 @@ class process_one_model():
   def add_H_atoms_with_reduce(self):
     '''
     '''
-    make_header('Adding H atoms with Reduce', out=self.logger)
+    self.model_with_H = None
+    print('Adding H atoms with Reduce', file=self.logger)
     if(len(self.model.get_hierarchy().models())>1):
       msg = 'multi model file; not supported'
       self.success   = False
@@ -285,8 +281,9 @@ class process_one_model():
       msg = traceback.format_exc()
       print(msg, file=self.logger)
     self.model_with_H = model
-    of = open('toto.pdb',"w")
+    #of = open('toto.pdb',"w")
     #of.write(self.model_with_H.model_as_pdb())
+    #of.close()
     #self.model_with_H.overall_counts().show()
 
   #-----------------------------------------------------------------------------
@@ -377,8 +374,6 @@ class process_one_model():
   #-----------------------------------------------------------------------------
 
   def get_mirror_fn(self, filedir):
-    '''
-    '''
     model_file = None
     fo=open(filedir+"/INDEX","r")
     for pdb_file_ in fo.readlines():
@@ -560,10 +555,24 @@ class process_one_model():
     saves number of Hbonds per glycerol
     '''
     make_sub_header('H-bonds', out=self.logger)
+    #
+    try:
+      self.add_H_atoms_with_reduce()
+    except Exception as e:
+      print('failed to run reduce.\n' , file=self.logger)
+      print(traceback.format_exc(), file=self.logger)
+      #self.success   = False
+      self.save_json()
+    #
     hbonds_list=[]
     iselection_dict = {}
     for sel_str in self.selection_dict_gol.keys():
       #print('Now looking at ', sel_str)
+      # initialize
+      self.json_data['GOL'][sel_str]['n_hbonds'] = None
+      # return if H addition failed
+      if self.model_with_H is None: return
+      # get H bonds
       near_res_sel_str = 'residues_within(5,%s)'%sel_str
       selection_bool2 = self.model_with_H.selection(near_res_sel_str)
       m2 = self.model_with_H.select(selection_bool2)
@@ -571,7 +580,6 @@ class process_one_model():
       try:
         m2.process(make_restraints=True)
       except Exception as e:
-        self.json_data['GOL'][sel_str]['n_hbonds'] = None
         continue
       try:
         pnps = pnp.manager(model = m2)

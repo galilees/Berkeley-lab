@@ -6,25 +6,10 @@ import os
 import time
 
 
-results_dir ='/net/anaconda/raid1/dorothee/14_frontiers_QR_restraints/galilee/json_files/'
+results_dir = '/net/anaconda/raid1/dorothee/14_frontiers_QR_restraints/galilee/json_files/'
+# results_dir = '/net/cci-filer3/home/galilees/pdb_survey_gol/'
 
-def open_file():
-    path_to_json = '/net/cci-filer3/home/galilees/pdb_survey_gol/'
-    data_list = []
-    for file_name in [file for file in os.listdir(path_to_json) if file.endswith('.json')]:
-        with open(path_to_json + file_name) as json_file:
-            data = json.load(json_file)
-            data_list.append(data)
-    return data_list
-   
-def data_fail_count(data_list):
-    count = 0 
-    for data in data_list:
-        success = data['success']
-        if success == False:
-            count += 1
-    return count 
-    
+
 def data_check(data_list):
     checked_data = []
     for data in data_list:
@@ -85,7 +70,6 @@ def run():
     if os.path.basename(root).startswith('queue_logs'): continue
     for file in files:
       if not file.endswith('.json'): continue
-      print(file)
       with open(file, 'r') as fp:
         n_json += 1
         data = json.load(fp)
@@ -105,11 +89,6 @@ def run():
 
 
 
-
-
-  data_list = open_file()
-  #print("all data from json files: ", data_list)
-  print("Total number of files read:", len(data_list))
 
   data_fail = data_fail_count(data_list)
   print("The number of files that failed check: ", data_fail)
