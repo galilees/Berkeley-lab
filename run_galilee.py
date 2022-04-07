@@ -22,23 +22,21 @@ from mmtbx.utils import run_reduce_with_timeout
 
 
 
-# TODO ******************
+# ******************
 #results_dir = '/net/cci-filer3/home/galilees/pdb_survey_gol/'
 results_dir ='/net/anaconda/raid1/dorothee/14_frontiers_QR_restraints/galilee/json_files/'
-# TODO **********
+# ******************
 #script = '/net/cci-filer3/home/galilees/Berkeley-lab/run_galilee.py'
 script = '/net/anaconda/raid1/dorothee/14_frontiers_QR_restraints/galilee/Berkeley-lab/run_galilee.py'
+# location of phenix build
 phenix_dir = "/net/cci-filer3/home/dcliebschner/phenix_svn/build/setpaths.csh"
-#
+# PDB mirror
 pdb_folder = '/net/cci/pdb_mirror/pdb/'
 mmcif_folder = '/net/cci/pdb_mirror/mmcif/'
 #sfcif_folder = '/net/cci/pdb_mirror/structure_factors/'
-# TODO
-# file with list of pdb codes of models that contain GOL
-#pickle_fn = '/net/anaconda/raid1/dorothee/14_frontiers_QR_restraints/scripts/pdb_codes_Xtallo_reso_range.pkl'
-pickle_fn = ''
 
-pdb_codes = ['1bg4']
+# file with list of pdb codes of models that contain GOL
+pickle_fn = '/net/anaconda/raid1/dorothee/14_frontiers_QR_restraints/galilee/Berkeley-lab/pdb_codes_xtal_GOL_reso_range.pkl'
 
 master_phil_str = '''
 include scope libtbx.phil.interface.tracking_params
@@ -71,7 +69,6 @@ class RunGenerate(ProgramTemplate):
   datatypes = ['phil']
   master_phil_str = master_phil_str
   
-  data_manager_options = ['model_skip_expand_with_mtrix']
 #-----------------------------------------------------------------------------
 
   def validate(self):
@@ -87,11 +84,10 @@ class RunGenerate(ProgramTemplate):
         raise Sorry("invalid PDB code for model")
       print(code, file=self.logger)
 
-    # TODO
-    #if not os.path.exists(pickle_fn):
-    #  raise Sorry("pickle file does not exist: %s" % pickle_fn)
-    #else:
-    #  print('Using pickle file: ', pickle_fn, file=self.logger)
+    if not os.path.exists(pickle_fn):
+      raise Sorry("pickle file does not exist: %s" % pickle_fn)
+    else:
+      print('Using pickle file: ', pickle_fn, file=self.logger)
 
     print('Target directory: ' , results_dir, file=self.logger)
 
@@ -101,25 +97,19 @@ class RunGenerate(ProgramTemplate):
     '''
     Start queue jobs or run individually
     '''
-#'1B6G','1G66','1PJX','1W3L','1W9D','2NRM','5ARB','5KJZ','5NI3','6DP3','1ZL0','2ODK','5I88','6A0C','6G3Q','1AH8','1AHP','1AYF','1B4E','1B8F','1BCS','1BF6','1BG4','1BHP','1BIF','1BIO','1BO5','1BOT','1BQU','1BRR','1BU6','1BVW','1BWF','1BXO'
     pdb_code_list = []
-    pdb_codes = ['1ayf','1brr', '1d3b', '1e4h', '1e6y', '1e8t','1B6G','1G66','1PJX','1W3L','1W9D','2NRM','5ARB','5KJZ','5NI3','6DP3','1ZL0','2ODK','5I88','6A0C','6G3Q','1AH8','1AHP','1AYF','1B4E','1B8F','1BCS','1BF6','1BG4','1BHP','1BIF','1BIO','1BO5','1BOT','1BQU','1BRR','1BU6','1BVW','1BWF','1BXO']
+    #pdb_codes = ['1ayf','1brr', '1d3b', '1e4h', '1e6y', '1e8t','1B6G','1G66','1PJX','1W3L','1W9D','2NRM','5ARB','5KJZ','5NI3','6DP3','1ZL0','2ODK','5I88','6A0C','6G3Q','1AH8','1AHP','1AYF','1B4E','1B8F','1BCS','1BF6','1BG4','1BHP','1BIF','1BIO','1BO5','1BOT','1BQU','1BRR','1BU6','1BVW','1BWF','1BXO']
     if self.params.models:
       for model in self.params.models:
         pdb_code = model.pdb_code
         pdb_code_list.append(pdb_code.lower())
     else:
-      # TODO
-      pass
-      pdb_code_list = pdb_codes
       #if pdb_code != '1bg4': continue
-      #pdb_code_list = easy_pickle.load(pickle_fn)
-    #print(pdb_code_list[:5])
+      pdb_code_list = easy_pickle.load(pickle_fn)
 
     commands = list()
-    n_jobs = 0
-    #for pdb_code in pdb_code_list[:5]:
-    for pdb_code in pdb_code_list:
+    #for pdb_code in pdb_code_list:
+    for pdb_code in pdb_code_list[:300]:
       pdb_code = pdb_code.lower()
       #
       if (self.params.mode == 'one_cpu'):
@@ -137,8 +127,6 @@ class RunGenerate(ProgramTemplate):
           ]
         cmd = " ".join(cmds)
         commands.append(cmd)
-        #n_jobs += 1
-        #if n_jobs==10000: break
 
     if (self.params.mode == 'queue'):
       queue_log_dir = os.path.join(results_dir, 'queue_logs_' +
@@ -165,7 +153,6 @@ class RunGenerate(ProgramTemplate):
 #==============================================================================
 
 class process_one_model():
-  datatypes = ['model']
 
   def __init__(self, logger, pdb_code, params):
     '''
@@ -178,15 +165,9 @@ class process_one_model():
     self.success = True
     self.error_msg = ''
 
-  #-----------------------------------------------------------------------------  
-
-  def initialize(self):
-      '''
-      Initialize data structures.
-      '''
-      self.selection_dict_gol = {}
-      self.selection_dict_hoh = {}
-      self.json_data = {}
+    self.selection_dict_gol = {}
+    self.selection_dict_hoh = {}
+    self.json_data = {}
 
   #-----------------------------------------------------------------------------
 
@@ -194,22 +175,16 @@ class process_one_model():
     '''
     '''
     #
-    self.initialize()
-    #
     make_header('Running model %s' % self.pdb_code, out=self.logger)
+    #
     self.prepare_directory()
+    #
     self.initialize_json()
+    #
     self.get_files_from_pdb_mirror()
-    self.model = self.get_model_object(filename = self.json_data['pdb_file'])
+    #
+    self.get_model_object(filename = self.json_data['pdb_file'])
     if not self.success: return
-
-    try:
-      self.add_H_atoms_with_reduce()
-    except Exception as e:
-      print('failed to run reduce.\n' , file=self.logger)
-      print(traceback.format_exc(), file=self.logger)
-      self.success   = False
-      self.save_json()
 
     try:
       self.get_selection(resname = "GOL")
@@ -249,6 +224,14 @@ class process_one_model():
       self.success   = False
       print('failed to get res nearby count for selection.\n' , file=self.logger)
       # self.json_data["sel_str"]["nearby_res"] = {} # TODO has to be adapted to current json structure
+      self.save_json()
+
+    try:
+      self.add_H_atoms_with_reduce()
+    except Exception as e:
+      print('failed to run reduce.\n' , file=self.logger)
+      print(traceback.format_exc(), file=self.logger)
+      self.success   = False
       self.save_json()
 
     self.get_hbonds()
@@ -332,7 +315,7 @@ class process_one_model():
       self.save_json()
       return
     print('...finished', file=self.logger)
-    return model
+    self.model = model
 
   #-----------------------------------------------------------------------------
 
