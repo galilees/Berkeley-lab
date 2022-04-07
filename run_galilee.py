@@ -18,12 +18,13 @@ from libtbx.str_utils import make_sub_header, make_header
 from libtbx.command_line import easy_qsub
 from iotbx import reflection_file_reader
 from scitbx.array_family import flex
+from mmtbx.utils import run_reduce_with_timeout
 
 
 
 # TODO ******************
 results_dir = '/net/cci-filer3/home/galilees/pdb_survey_gol/'
-#results_dir ='/net/anaconda/raid1/dorothee/14_frontiers_QR_restraints/galilee/json_files/'
+# results_dir ='/net/anaconda/raid1/dorothee/14_frontiers_QR_restraints/galilee/json_files/'
 # TODO **********
 #script = '/net/cci-filer3/home/galilees/Berkeley-lab/run_galilee.py'
 script = '/net/anaconda/raid1/dorothee/14_frontiers_QR_restraints/galilee/run_galilee.py'
@@ -69,7 +70,8 @@ class RunGenerate(ProgramTemplate):
 
   datatypes = ['phil']
   master_phil_str = master_phil_str
-
+  
+  data_manager_options = ['model_skip_expand_with_mtrix']
 #-----------------------------------------------------------------------------
 
   def validate(self):
@@ -140,29 +142,30 @@ class RunGenerate(ProgramTemplate):
   # TODO
   # Uncomment this once the script is ready to be done on the queue
   #
-  #      queue_log_dir = os.path.join(results_dir, 'queue_logs_' +
-  #        str(datetime.date.today()))
-  #      dir_name = queue_log_dir
-  #      if os.path.isdir(dir_name):
-  #        time_hour = str(datetime.datetime.now())[11:16]
-  #        time_hour = time_hour.replace(':', '_')
-  #        dir_name = queue_log_dir + '_' + time_hour
-  #      if (not os.path.isdir(dir_name)):
-  #        os.makedirs(dir_name)
-  #
-  #      for command in commands[:6]: print(command, file=self.logger)
+    queue_log_dir = os.path.join(results_dir, 'queue_logs_' +
+         str(datetime.date.today()))
+    dir_name = queue_log_dir
+    if os.path.isdir(dir_name):
+      time_hour = str(datetime.datetime.now())[11:16]
+      time_hour = time_hour.replace(':', '_')
+      dir_name = queue_log_dir + '_' + time_hour
+    if (not os.path.isdir(dir_name)):
+      os.makedirs(dir_name)
 
-  #      easy_qsub.run(
-  #        phenix_source  = phenix_dir,
-  #        where          = queue_log_dir,
-  #        commands       = commands,
-  #        #qsub_cmd       = 'qsub -q all.q@%s -pe threaded 4' % machine,
-  #        qsub_cmd       = 'qsub -q all.q',
-  #        #qsub_cmd       = 'qsub -q all.q@morse',
-  #        js             = 20,
-  #        size_of_chunks = 1)
+    for command in commands[:6]: print(command, file=self.logger)
+
+    easy_qsub.run(
+      phenix_source  = phenix_dir,
+      where          = queue_log_dir,
+      commands       = commands,
+      #qsub_cmd       = 'qsub -q all.q@%s -pe threaded 4' % machine,
+      qsub_cmd       = 'qsub -q all.q',
+      #qsub_cmd       = 'qsub -q all.q@morse',
+      js             = 20,
+      size_of_chunks = 1)
 
 #==============================================================================
+
 class process_one_model():
   datatypes = ['model']
 
@@ -183,103 +186,85 @@ class process_one_model():
       '''
       inistialze data structures.
       '''
-      self.res_dict = {}
-      self.selection_dict = {}
       self.selection_dict_gol = {}
       self.selection_dict_hoh = {}
-      self.nearby_residue_dict = {}
-      self.nearby_res_dict_gol = {}
-      self.nearby_res_dict_hoh = {}
-      self.gol_hbonds_dict = {}
-      self.hbonds_dict = {}
-      self.hbonds_dict_gol = {}
-      self.hbonds_dict_hoh = {}
       self.json_data = {}
-      # self.json_data['number of Hbonds involving GOL: '] = {}
-      # self.json_data['nearby_res'] = {}
 
   #-----------------------------------------------------------------------------
 
   def run(self):
     '''
     '''
-    self.success = True
-    
     #
     self.initialize()
     #
-    #start_time = time.time()
     make_header('Running model %s' % self.pdb_code, out=self.logger)
     self.prepare_directory()
     self.initialize_json()
-    #
     self.get_files_from_pdb_mirror()
-
     self.model = self.get_model_object(filename = self.json_data['pdb_file'])
-    #model.overall_counts().show()
-    
-    msg = traceback.format_exc()
-    print(msg, file=self.logger)
-   
+
+    try:
+      self.add_H_atoms_with_reduce()
+    except Exception as e:
+      print('failed to run reduce.\n' , file=self.logger)
+      #print(msg = traceback.format_exc(), file=self.logger)
+      self.success   = False
+      self.save_json()
+
     try:
       self.get_selection(resname = "GOL")
     except Exception as e:
-      msg = traceback.format_exc()
-      print(msg, file=self.logger)
       self.success   = False
       print('failed to get GOL selection.\n' , file=self.logger)
-      self.json_data["selection_strings"] = []
+      print(traceback.format_exc(), file=self.logger)
       self.save_json()
 
     try:
       self.get_selection(resname = "HOH")
     except Exception as e:
-      self.success   = False
       print('failed to get HOH selection.\n' , file=self.logger)
-      self.json_data["selection_strings"] = []
+      print(msg = traceback.format_exc(), file=self.logger)
+      self.success   = False
       self.save_json()
    
     try:  
-      self.validate_gol(self.selection_dict)
-    except Exception as e:
-      self.success   = False
-      print('failed to validate gol selection.\n' , file=self.logger)
-    
-    try:  
-      self.res_nearby_count('GOL')
+      self.validate_gol()
     except Exception as e:
       msg = traceback.format_exc()
       print(msg, file=self.logger)
       self.success   = False
-      print('failed to get res nearby count for selection.\n' , file=self.logger)
-      self.json_data["nearby_res"] = {}
-      self.save_json()
+      print('failed to validate gol selection.\n' , file=self.logger)
+    
 
     try:  
+      self.res_nearby_count('GOL')
+    except Exception as e:
+      print('failed to get res nearby count for selection.\n' , file=self.logger)
+      print(traceback.format_exc(), file=self.logger)
+      self.success   = False
+      self.save_json()
+
+    try:
       self.res_nearby_count('HOH')
     except Exception as e:
       self.success   = False
       print('failed to get res nearby count for selection.\n' , file=self.logger)
-      self.json_data["nearby_res"] = {}
+      # self.json_data["sel_str"] ["nearby_res"] = {} # TODO has to be adapted to current json structure
       self.save_json()
-  
-    # try:
-    #   self.get_hbonds('GOL')
-    # except Exception as e:
-    #   msg = traceback.format_exc()
-    #   print(msg, file=self.logger)
-    #   self.success   = False
-    #   print('failed to get hbonds for selection.\n' , file=self.logger)
-    #   self.json_data['number of Hbonds involving GOL: '] = {}
-    #   self.save_json()
 
-    # try:
-    #   self.get_hbonds('HOH')
-    # except Exception as e: 
-    #   self.success   = False
-    #   print('failed to get hbonds for selection.\n' , file=self.logger)
-    #   self.json_data['number of Hbonds involving HOH: '] = {}
-    #   self.save_json()
+    try:
+      self.get_hbonds('GOL')
+    except Exception as e:
+      msg = traceback.format_exc()
+      print(msg, file=self.logger)
+      self.success   = False
+      print('failed to get hbonds for selection.\n' , file=self.logger)
+      self.save_json()
+
+
+
+
 
     # pdb_hierarchy = self.model.get_hierarchy()
     # sec_str_from_pdb_file = self.model.get_ss_annotation()
@@ -288,27 +273,38 @@ class process_one_model():
     # print('Running secondary structure annotation...')
     # v1 = self.get_ss(hierarchy             = pdb_hierarchy,
     # sec_str_from_pdb_file = sec_str_from_pdb_file)
-    
-    # self.json_data['GOL']['selection string'] = self.selection_dict_gol.keys()
-    # self.save_json()
-    self.json_data['GOL']['near_by_res'] = self.nearby_res_dict_gol.items()
-    self.save_json()
-    # self.json_data['GOL']['number of H-bonds' ] = self.hbonds_dict_gol.values() 
-    # self.save_json()
-
-    # self.json_data['HOH']['selection string'] = self.selection_dict_hoh.keys()
-    # self.save_json()
-    self.json_data['HOH']['near_by_res'] = self.nearby_res_dict_hoh.items()
-    self.save_json()
-    self.json_data['HOH']['number of H-bonds' ] = self.hbonds_dict_hoh.values() 
-    self.save_json()
 
     # gol_dict_1 = {'nearby_res': [1,2,3,4], 'n_hbonds': 4}
     #self.json_data['GOL'] = {'sel_str1' : gol_dict_1}
     # self.save_json()
 
-   
-    
+  #-----------------------------------------------------------------------------
+
+  def add_H_atoms_with_reduce(self):
+    '''
+    '''
+    make_header('Adding H atoms with Reduce', out=self.logger)
+    if(len(self.model.get_hierarchy().models())>1):
+      msg = 'multi model file; not supported'
+      self.success   = False
+      print(msg + '\n' , file=self.logger)
+      self.save_json()
+    # Add H; this looses CRYST1 !
+    rr = run_reduce_with_timeout(
+      stdin_lines = self.model.get_hierarchy().as_pdb_string().splitlines(),
+      file_name   = None,
+      parameters  = "-oh -his -flip -keep -allalt -pen9999 -",
+      override_auto_timeout_with=None)
+    # Create model; this is a single-model pure protein with new H added
+    pdb_inp = iotbx.pdb.input(source_info = None, lines = rr.stdout_lines)
+    model = mmtbx.model.manager(
+      model_input      = pdb_inp,
+      log              = null_out())
+    model._crystal_symmetry = self.model.crystal_symmetry()
+    model.process()
+    #model.process(make_restraints = True)
+    self.model_with_H = model
+    #self.model_with_H.overall_counts().show()
 
   #-----------------------------------------------------------------------------
 
@@ -478,6 +474,7 @@ class process_one_model():
   #    self.dest_dir = dest_dir
 
   #----------------------------------------------------------------------------
+
   def get_ss(self,
             hierarchy,
             sec_str_from_pdb_file=None,
@@ -541,9 +538,10 @@ class process_one_model():
 
   #-----------------------------------------------------------------------------
 
-  def print_hbond_table(self, model, gol_hbonds_dict):
+  def print_hbond_table(self, model, hbonds_dict):
     '''
-    takes in the model and a dictionary of hbonds and prints the table associated with the hbonds
+    takes in the model and a dictionary of hbonds and prints the table
+    associated with the hbonds
     '''
     result_str = '{:<18} : {:5d}'
     # print table with all H-bonds
@@ -556,9 +554,8 @@ class process_one_model():
     print(title2_str.format(*title2))
     table_str = '{:>16}|{:>16}|{:^16}|{:^10.2f}|{:^10.2f}|{:^14.2f}|{:^15}|'
     print('-'*99)
-    ###########
     atoms = model.get_atoms()
-    for iseq_tuple, record in gol_hbonds_dict.items():
+    for iseq_tuple, record in hbonds_dict.items():
       iseq_x, iseq_h, iseq_a = iseq_tuple
       if record[4] is not None:
         symop = record[4]
@@ -575,58 +572,46 @@ class process_one_model():
 
   def get_hbonds(self,resname):
     '''
-    Searches within a radius of 5 angstroms for hydrogen bonds to glycerol and returns a list of tuples containing the isequences of hbond partners 
+    Searches within a radius of 5 angstroms for hydrogen bonds to glycerol and
+    returns a list of tuples containing the isequences of hbond partners
     '''
-
     make_sub_header('H-bonds', out=self.logger)
     if resname == 'GOL':
-      self.selection_dict = self.selection_dict_gol
+      selection_dict = self.selection_dict_gol
     elif resname == 'HOH':
-      self.selection_dict = self.selection_dict_hoh
-    if resname == 'GOL':
-     self.hbonds_dict = self.hbonds_dict_gol 
-    elif resname == 'HOH':
-        self.hbonds_dict  = self.hbonds_dict_hoh 
+      selection_dict = self.selection_dict_hoh
     hbonds_list=[]
     iselection_dict = {}
-    _i = 0
-    for sel_str in self.selection_dict.keys():
-      _i += 1
-      #if _i > 1: break
+    for sel_str in selection_dict.keys():
       #print('Now looking at ', sel_str)
-      near_res = 'residues_within(5,%s)'%sel_str
-      selection_bool2 = self.model.selection(near_res)
-      m2 = self.model.select(selection_bool2)
+      #self.json_data['GOL'][sel_str]['n_hbonds'] = {}
+      near_res_sel_str = 'residues_within(5,%s)'%sel_str
+      selection_bool2 = self.model_with_H.selection(near_res_sel_str)
+      m2 = self.model_with_H.select(selection_bool2)
       m2.set_log(log = null_out())
       m2.process(make_restraints=True)
-
       pnps = pnp.manager(model = m2)
-    
       hbonds = pnps.get_hbonds()
-      #hbonds.show(log=sys.stdout) # hide
-      #print("tuple keys to hbonds table: ", hbonds._hbonds_dict.keys()) #Show tuple index to table
-    
-      # better name? gol_iseq_numbers
-      iselection_list = list(m2.iselection(sel_str))
+      #hbonds.show(log=sys.stdout)
+      #self.print_hbond_table(model = m2, hbonds_dict = hbonds._hbonds_dict)
 
-      gol_hbonds_dict = {}
+      gol_iseq_numbers = list(m2.iselection(sel_str))
+      #print(gol_iseq_numbers)
+      _gol_hbonds_dict = {}
       for iseq_tuple in list(hbonds._hbonds_dict.keys()):
+        #print(iseq_tuple)
         for iseq in iseq_tuple:
-          if iseq in iselection_list:
-            gol_iseq_tuple = iseq_tuple
-            hbonds_dict_value = hbonds._hbonds_dict.get(gol_iseq_tuple)
-            gol_hbonds_dict[gol_iseq_tuple] = hbonds_dict_value
-            if gol_iseq_tuple not in hbonds_list:
-              hbonds_list.append(gol_iseq_tuple)
-          else:
-            break
+          if iseq in gol_iseq_numbers:
+            _gol_hbonds_dict[iseq_tuple] = hbonds._hbonds_dict[iseq_tuple]
 
-      #self.print_hbond_table(model           = m2,
-                              #gol_hbonds_dict = gol_hbonds_dict)
-      self.hbonds_dict[sel_str] = len(gol_hbonds_dict.keys())
+      self.print_hbond_table(model       = m2,
+                             hbonds_dict = _gol_hbonds_dict)
 
-      #print('number of Hbonds involving GOL: ', len(gol_hbonds_dict.keys()))
-      
+      n_hbonds = len(_gol_hbonds_dict.keys())
+      print('number of Hbonds involving GOL: ', n_hbonds)
+      self.json_data['GOL'][sel_str]['n_hbonds'] = n_hbonds
+    
+    self.save_json()
     
   #-----------------------------------------------------------------------------  
 
@@ -640,10 +625,7 @@ class process_one_model():
 
     print(resname, file=self.logger)
     
-    if resname == 'GOL':
-      self.selection_dict = self.selection_dict_gol
-    elif resname == 'HOH':
-        self.selection_dict = self.selection_dict_hoh
+    selection_dict = {}
     hierarchy = self.model.get_hierarchy()
     for m in hierarchy.models():            # Get hierarchy object
       for chain in m.chains():              # loop over chain, residue group, and atom group 
@@ -652,10 +634,16 @@ class process_one_model():
             if (ag.resname == resname):
               iselection = ag.atoms().extract_i_seq()
               sel_str = " ".join(['chain', chain.id, 'and resname', ag.resname, 'and resseq', rg.resseq])
-              self.selection_dict[sel_str] = list(iselection)
+              selection_dict[sel_str] = list(iselection)
+              self.json_data[resname][sel_str] = {}
+    if resname == 'GOL':
+      self.selection_dict_gol = selection_dict
+    elif resname == 'HOH':
+      self.selection_dict_hoh = selection_dict
+    self.save_json()
               
   #----------------------------------------------------------------------------
-  def validate_gol(self, b_max = 100,occ_min = .2):
+  def validate_gol(self, b_max = 100, occ_min = 0.2):
     '''
     b_max: int
     occ_min: int
@@ -667,7 +655,7 @@ class process_one_model():
     
     bad_selection=[]
     
-    for sel_str in self.selection_dict.keys():
+    for sel_str in self.selection_dict_gol.keys():
       selection_bool1 = self.model.selection(sel_str)
       m1 = self.model.select(selection_bool1)        
       ph1 = m1.get_hierarchy()
@@ -677,19 +665,17 @@ class process_one_model():
       if occ_list.count(mmm.min != mmm.max):
         bad_selection.append(sel_str)
       
-
       mmm = m1.get_atoms().extract_occ().min_max_mean()
       if  mmm.mean < occ_min:
         bad_selection.append(sel_str)
 
-      #b_max = 100.0
       mmm = m1.get_atoms().extract_b().min_max_mean()
       if  mmm.mean > b_max:
         bad_selection.append(sel_str)
       
     for s in bad_selection:
-      if s in self.selection_dict:
-        self.selection_dict.pop(s)
+      if s in self.selection_dict_gol:
+        self.selection_dict_gol.pop(s)
     
     if bad_selection:
       print("selections removed: ")
@@ -702,30 +688,25 @@ class process_one_model():
 
   def res_nearby_count(self,resname):
     '''
-    counts the residues nearby each selection. Returns a dictionary with the name of the residue as the key and its count as the value. 
+    counts the residues nearby each selection. Returns a dictionary with the name
+    of the residue as the key and its count as the value.
     '''
     make_sub_header('count of residues nearby each selection', out=self.logger)
    
     if resname == 'GOL':
-      self.selection_dict = self.selection_dict_gol
+      selection_dict = self.selection_dict_gol
     elif resname == 'HOH':
-      self.selection_dict = self.selection_dict_hoh
-    
-    
-    for sel_str in self.selection_dict.keys():
-      if resname == 'GOL':
-        self.nearby_residue_dict = self.nearby_res_dict_gol
-      elif resname == 'HOH':
-        self.nearby_residue_dict = self.nearby_res_dict_hoh
-      
+      selection_dict = self.selection_dict_hoh
+
+    for sel_str in selection_dict.keys():
       near_res = "residues_within(5,%s)"%sel_str
       selection_bool2 = self.model.selection(near_res)
       m = self.model.select(selection_bool2) 
       ph = m.get_hierarchy()
       res_nearby = ph.overall_counts().resnames
-      self.nearby_residue_dict[sel_str] = res_nearby
-    
-    # return res_nearby
+      self.json_data[resname][sel_str]['nearby_res'] = res_nearby
+
+    self.save_json()
 
 #----------------------------------------------------------------------------  
 
