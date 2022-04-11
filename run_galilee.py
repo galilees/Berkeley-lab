@@ -107,7 +107,7 @@ class RunGenerate(ProgramTemplate):
 
     commands = list()
     #for pdb_code in pdb_code_list:
-    for pdb_code in pdb_code_list[:10000]:
+    for pdb_code in pdb_code_list[:15000]:
       pdb_code = pdb_code.lower()
       #
       if (self.params.mode == 'one_cpu'):

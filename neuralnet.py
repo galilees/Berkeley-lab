@@ -4,7 +4,7 @@ import json
 import os, time
 import random
 
-path_to_json = '/net/anaconda/raid1/dorothee/14_frontiers_QR_restraints/galilee/json_files/'
+path_to_json = '/net/anaconda/raid1/dorothee/14_frontiers_QR_restraints/galilee/pdb_survey/'
 
 def data_frame(list_):
     df = pd.DataFrame(list_)
@@ -51,6 +51,7 @@ def run():
         #
         all_hohs_dict = data['HOH']
         for sel_str, hoh_data in all_hohs_dict.items():
+          if 'nearby_res' not in hoh_data: continue
           nearby_dict_list_hoh.append(hoh_data['nearby_res'])
 
   print(len(n_hbonds_list))
