@@ -251,6 +251,8 @@ class process_one_model():
 
       assert alpha.size() == beta.size() == pdb_hierarchy.atoms().size()
       for sel_str in self.selection_dict_gol.keys():
+        self.json_data['GOL'][sel_str]['n_ss_helix'] = None # better place to initialize?
+        self.json_data['GOL'][sel_str]['n_ss_beta']  = None  # better place to initialize?
         print(sel_str)
         near_res = "residues_within(5,%s) and not (%s)" % (sel_str, sel_str)
         isel_near_res = self.model.iselection(near_res)
@@ -261,8 +263,12 @@ class process_one_model():
         isel_beta_near_gol = flex.intersection(
           size = n_atoms,iselections = [isel_near_res,isel_beta]).iselection()
         m_beta = self.model.select(isel_beta_near_gol)
-        print('number residues in helix: ', m_alpha.overall_counts().n_residues)
-        print('number residues in sheet: ', m_beta.overall_counts().n_residues)
+        n_ss_helix = m_alpha.overall_counts().n_residues
+        n_ss_sheet = m_beta.overall_counts().n_residues
+        print('number residues in helix: ', n_ss_helix)
+        print('number residues in sheet: ', n_ss_sheet)
+        self.json_data['GOL'][sel_str]['n_ss_helix'] = n_ss_helix
+        self.json_data['GOL'][sel_str]['n_ss_beta']  = n_ss_sheet
         #print(dir(m_alpha.overall_counts()))
         # ****************************************
         # uncomment for checking
@@ -273,6 +279,8 @@ class process_one_model():
       print(msg, file=self.logger)
       self.success   = False
       print('failed secondary structure.\n' , file=self.logger)
+
+    self.save_json()
 
   #-----------------------------------------------------------------------------
 
