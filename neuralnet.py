@@ -6,52 +6,6 @@ import random
 
 path_to_json = '/net/anaconda/raid1/dorothee/14_frontiers_QR_restraints/galilee/json_files/'
 
-
-def read_data(resname):
-    data_list = []
-    checked_data = []
-    checked_data_list = []
-    nearby_dict_list = []
-    h_bond_dict_list = []
-    count_fail = 0 
-    
-    for file_name in [file for file in os.listdir(path_to_json) if file.endswith('.json')]:
-        with open(path_to_json + file_name) as json_file:
-            data = json.load(json_file)
-            data_list.append(data)
-            
-    for data in data_list:
-        success = data['success']
-        
-        if success == False:
-            count_fail += 1
-        if success == True:
-            checked_data.append(data)
-  
-    for dict in checked_data:
-        data = dict[resname]
-        checked_data_list.append(data)
-    #print(checked_data[0:2])
-
-    for i in checked_data_list:
-        for k, v in i.items():
-             for key, val in v.items():
-            
-                 if key == "nearby_res":
-                      nearby_dict_list.append(val)
-       
-                 if key == "n_hbonds":
-                      h_bond_dict_list.append(val)
-    #nearby_dict_hbonds_list = nearby_dict_list + h_bond_dict_list
-    print("Total number of files read:", len(data_list))
-    print("The number of files that failed check: ", count_fail)
-    print("The number of files that passed the fail check: ", len(checked_data))
-    count_fail = 0
-    data_list.clear()
-    checked_data.clear()
-    return nearby_dict_list
-
-
 def data_frame(list_):
     df = pd.DataFrame(list_)
     return df
@@ -65,7 +19,8 @@ def run():
   list_fail = []
   nearby_dict_list_gol = []
   nearby_dict_list_hoh = []
-  n_hbonds_list = []
+  n_ss_helix_list      = []
+  n_hbonds_list        = []
   for file_name in [file for file in os.listdir(path_to_json) if file.endswith('.json')]:
   #for root, dirs, files in os.walk(path_to_json):
     #if os.path.basename(root).startswith('queue_logs'): continue
@@ -105,9 +60,9 @@ def run():
   print('Number of json files read: ', n_json)
   print('Number of success: ', n_success)
   print('Number of failues', len(list_fail))
-  print('failures')
-  for p in list_fail:
-    print(p)
+  #print('failures')
+  #for p in list_fail:
+  #  print(p)
 
 #print("Total number of glycerol: " , len(gol_data))
 
