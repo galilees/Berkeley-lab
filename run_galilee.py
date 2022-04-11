@@ -20,11 +20,9 @@ from iotbx import reflection_file_reader
 from scitbx.array_family import flex
 from mmtbx.utils import run_reduce_with_timeout
 
-
-
 # ******************
 #results_dir = '/net/cci-filer3/home/galilees/pdb_survey_gol/'
-results_dir ='/net/anaconda/raid1/dorothee/14_frontiers_QR_restraints/galilee/json_files/'
+results_dir ='/net/anaconda/raid1/dorothee/14_frontiers_QR_restraints/galilee/pdb_survey/'
 # ******************
 #script = '/net/cci-filer3/home/galilees/Berkeley-lab/run_galilee.py'
 script = '/net/anaconda/raid1/dorothee/14_frontiers_QR_restraints/galilee/Berkeley-lab/run_galilee.py'
@@ -109,7 +107,7 @@ class RunGenerate(ProgramTemplate):
 
     commands = list()
     #for pdb_code in pdb_code_list:
-    for pdb_code in pdb_code_list[:1000]:
+    for pdb_code in pdb_code_list[:10000]:
       pdb_code = pdb_code.lower()
       #
       if (self.params.mode == 'one_cpu'):
@@ -202,13 +200,7 @@ class process_one_model():
       self.success   = False
       self.save_json()
    
-    try:  
-      self.validate_gol()
-    except Exception as e:
-      msg = traceback.format_exc()
-      print(msg, file=self.logger)
-      self.success   = False
-      print('failed to validate gol selection.\n' , file=self.logger)
+    self.validate_gol()
     
     try:  
       self.res_nearby_count('GOL')
@@ -222,32 +214,65 @@ class process_one_model():
       self.res_nearby_count('HOH')
     except Exception as e:
       self.success   = False
+      print(traceback.format_exc(), file=self.logger)
       print('failed to get res nearby count for selection.\n' , file=self.logger)
-      # self.json_data["sel_str"]["nearby_res"] = {} # TODO has to be adapted to current json structure
       self.save_json()
-
-
-
 
     self.get_hbonds()
 
+    self.get_ss()
 
+  #----------------------------------------------------------------------------
 
+  def get_ss(self):
+    '''
+    Get xxxxxxx
+    '''
+    make_sub_header('Get secondary structure', out=self.logger)
+    try:
+      pdb_hierarchy = self.model.get_hierarchy()
+      sec_str_from_pdb_file = self.model.get_ss_annotation()
+      params = mmtbx.secondary_structure.manager.get_default_ss_params()
+      params.secondary_structure.protein.search_method='ksdssp'
+      params = params.secondary_structure
+      ssm = mmtbx.secondary_structure.manager(
+        pdb_hierarchy         = pdb_hierarchy,
+        sec_str_from_pdb_file = sec_str_from_pdb_file,
+        params                = params,
+        log                   = null_out())
+      # ****************************************
+      # uncomment for checking
+      #print(ssm.records_for_pdb_file())
+      # ****************************************
+      alpha = ssm.helix_selection() # bool array
+      beta  = ssm.beta_selection()
+      isel_alpha = alpha.iselection()
+      isel_beta = beta.iselection()
 
-
-
-    # pdb_hierarchy = self.model.get_hierarchy()
-    # sec_str_from_pdb_file = self.model.get_ss_annotation()
-
-    # # get secodary structure annotation vector from HELIX/SHEET records (file header)
-    # print('Running secondary structure annotation...')
-    # v1 = self.get_ss(hierarchy             = pdb_hierarchy,
-    # sec_str_from_pdb_file = sec_str_from_pdb_file)
-
-    # gol_dict_1 = {'nearby_res': [1,2,3,4], 'n_hbonds': 4}
-    #self.json_data['GOL'] = {'sel_str1' : gol_dict_1}
-    # self.save_json()
-
+      assert alpha.size() == beta.size() == pdb_hierarchy.atoms().size()
+      for sel_str in self.selection_dict_gol.keys():
+        print(sel_str)
+        near_res = "residues_within(5,%s) and not (%s)" % (sel_str, sel_str)
+        isel_near_res = self.model.iselection(near_res)
+        n_atoms = pdb_hierarchy.atoms().size()
+        isel_alpha_near_gol = flex.intersection(
+          size = n_atoms, iselections = [isel_near_res,isel_alpha]).iselection()
+        m_alpha = self.model.select(isel_alpha_near_gol)
+        isel_beta_near_gol = flex.intersection(
+          size = n_atoms,iselections = [isel_near_res,isel_beta]).iselection()
+        m_beta = self.model.select(isel_beta_near_gol)
+        print('number residues in helix: ', m_alpha.overall_counts().n_residues)
+        print('number residues in sheet: ', m_beta.overall_counts().n_residues)
+        #print(dir(m_alpha.overall_counts()))
+        # ****************************************
+        # uncomment for checking
+        # print(m_alpha.model_as_pdb())
+        # ****************************************
+    except Exception as e:
+      msg = traceback.format_exc()
+      print(msg, file=self.logger)
+      self.success   = False
+      print('failed secondary structure.\n' , file=self.logger)
   #-----------------------------------------------------------------------------
 
   def add_H_atoms_with_reduce(self):
@@ -293,7 +318,7 @@ class process_one_model():
       Get model object without restraints.
     '''
     model = None
-    make_header('Getting model object', out=self.logger)
+    make_sub_header('Getting model object', out=self.logger)
     try:
       pdb_inp = iotbx.pdb.input(file_name = filename)
     except Exception as e:
@@ -452,68 +477,6 @@ class process_one_model():
   #    os.chdir(dest_dir)
   #    self.dest_dir = dest_dir
 
-  #----------------------------------------------------------------------------
-
-  def get_ss(self,
-            hierarchy,
-            sec_str_from_pdb_file=None,
-            method="ksdssp",
-            use_recs=False):
-    if(use_recs): params = None
-    else:
-      params = mmtbx.secondary_structure.manager.get_default_ss_params()
-      params.secondary_structure.protein.search_method=method
-      params = params.secondary_structure
-    ssm = mmtbx.secondary_structure.manager(
-      pdb_hierarchy         = hierarchy,
-      sec_str_from_pdb_file = sec_str_from_pdb_file,
-      params                = params,
-      log                   = null_out())
-    #print(ssm.records_for_pdb_file())
-    alpha = ssm.helix_selection()
-    beta  = ssm.beta_selection()
-    #print(list(alpha))
-
-    #print(dir(ssm))
-    #STOP()
-
-    assert alpha.size() == beta.size() == hierarchy.atoms().size()
-    annotation_vector = flex.double(hierarchy.atoms().size(), 0)
-    annotation_vector.set_selected(alpha, 1)
-    annotation_vector.set_selected(beta, 2)
-
-    #records = ssm.records_for_pdb_file()
-    #print(records)
-    sel_str = 'chain A and resname GOL and resseq  630'
-    near_res = "residues_within(5,%s)"%sel_str
-    selection_bool2 = self.model.selection(near_res)
-    m2 = self.model.select(selection_bool2)
-
-    m2.set_ss_annotation(ann = sec_str_from_pdb_file)
-    print(m2.model_as_pdb())
-
-    
-
-    # sec_str_from_m2 = m2.get_ss_annotation()
-    # print(sec_str_from_m2)
-    # params = mmtbx.secondary_structure.manager.get_default_ss_params()
-    # params.secondary_structure.protein.search_method="ksdssp"
-    # params = params.secondary_structure
-    # params = None
-    # ssm = mmtbx.secondary_structure.manager(
-    #   pdb_hierarchy         = m2.get_hierarchy(),
-    #   sec_str_from_pdb_file = sec_str_from_pdb_file,
-    #   params                = params,
-    #   log                   = null_out())
-    
-    print(ssm.helix_selection().count(True))
-    print(len(ssm.helix_selection()))
-    print(ssm.get_helix_types)
-    print(ssm.find_approximate_helices())
-
-    return annotation_vector
-
-
 
   #-----------------------------------------------------------------------------
 
@@ -523,7 +486,6 @@ class process_one_model():
     associated with the hbonds
     '''
     result_str = '{:<18} : {:5d}'
-    # print table with all H-bonds
     title1 = ['donor', 'acceptor', 'distance', 'angle']
     title1_str = '{:^33}|{:^16}|{:^21}|{:^14}|'
     print('\n' + title1_str.format(*title1))
@@ -645,35 +607,42 @@ class process_one_model():
     '''
     b_max: int
     occ_min: int
-    removes strutures from the selection dictionary that do no meet criteria. The b factor is out of range if it exceeds b_max and the occupancy is out of range if it is less than occ_min. 
+    removes strutures from the selection dictionary that do no meet criteria.
+    The b factor is out of range if it exceeds b_max and the occupancy is out
+    of range if it is less than occ_min.
     Also checks that all occupancies within the molecule are the same.
     '''
-
     make_sub_header('curate gol selection', out=self.logger)
     
     bad_selection=[]
-    
-    for sel_str in self.selection_dict_gol.keys():
-      selection_bool1 = self.model.selection(sel_str)
-      m1 = self.model.select(selection_bool1)        
-      ph1 = m1.get_hierarchy()
+    try:
+      for sel_str in self.selection_dict_gol.keys():
+        selection_bool1 = self.model.selection(sel_str)
+        m1 = self.model.select(selection_bool1)
+        ph1 = m1.get_hierarchy()
 
-      occ_list = list(m1.get_atoms().extract_occ())
-      mmm = m1.get_atoms().extract_occ().min_max_mean()
-      if occ_list.count(mmm.min != mmm.max):
-        bad_selection.append(sel_str)
-      
-      mmm = m1.get_atoms().extract_occ().min_max_mean()
-      if  mmm.mean < occ_min:
-        bad_selection.append(sel_str)
+        occ_list = list(m1.get_atoms().extract_occ())
+        mmm = m1.get_atoms().extract_occ().min_max_mean()
+        if occ_list.count(mmm.min != mmm.max):
+          bad_selection.append(sel_str)
 
-      mmm = m1.get_atoms().extract_b().min_max_mean()
-      if  mmm.mean > b_max:
-        bad_selection.append(sel_str)
-      
-    for s in bad_selection:
-      if s in self.selection_dict_gol:
-        self.selection_dict_gol.pop(s)
+        mmm = m1.get_atoms().extract_occ().min_max_mean()
+        if  mmm.mean < occ_min:
+          bad_selection.append(sel_str)
+
+        mmm = m1.get_atoms().extract_b().min_max_mean()
+        if  mmm.mean > b_max:
+          bad_selection.append(sel_str)
+
+      for s in bad_selection:
+        if s in self.selection_dict_gol:
+          self.selection_dict_gol.pop(s)
+
+    except Exception as e:
+      msg = traceback.format_exc()
+      print(msg, file=self.logger)
+      self.success   = False
+      print('failed to validate gol selection.\n' , file=self.logger)
     
     if bad_selection:
       print("selections removed: ")
