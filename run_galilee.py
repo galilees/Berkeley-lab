@@ -273,6 +273,7 @@ class process_one_model():
       print(msg, file=self.logger)
       self.success   = False
       print('failed secondary structure.\n' , file=self.logger)
+
   #-----------------------------------------------------------------------------
 
   def add_H_atoms_with_reduce(self):
@@ -477,7 +478,6 @@ class process_one_model():
   #    os.chdir(dest_dir)
   #    self.dest_dir = dest_dir
 
-
   #-----------------------------------------------------------------------------
 
   def print_hbond_table(self, model, hbonds_dict):
@@ -603,6 +603,7 @@ class process_one_model():
     self.save_json()
               
   #----------------------------------------------------------------------------
+
   def validate_gol(self, b_max = 100, occ_min = 0.2):
     '''
     b_max: int
@@ -626,10 +627,12 @@ class process_one_model():
         if occ_list.count(mmm.min != mmm.max):
           bad_selection.append(sel_str)
 
+        # TODO why making mmm again?
         mmm = m1.get_atoms().extract_occ().min_max_mean()
         if  mmm.mean < occ_min:
           bad_selection.append(sel_str)
 
+        # TODO better to give this another name, as it is confusing otherwise
         mmm = m1.get_atoms().extract_b().min_max_mean()
         if  mmm.mean > b_max:
           bad_selection.append(sel_str)
