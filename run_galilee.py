@@ -21,8 +21,8 @@ from scitbx.array_family import flex
 from mmtbx.utils import run_reduce_with_timeout
 
 # ******************
-#results_dir = '/net/cci-filer3/home/galilees/pdb_survey_gol/'
-results_dir ='/net/anaconda/raid1/dorothee/14_frontiers_QR_restraints/galilee/pdb_survey/'
+results_dir = '/net/cci-filer3/home/galilees/pdb_survey_gol/'
+#results_dir ='/net/anaconda/raid1/dorothee/14_frontiers_QR_restraints/galilee/pdb_survey/'
 # ******************
 #script = '/net/cci-filer3/home/galilees/Berkeley-lab/run_galilee.py'
 script = '/net/anaconda/raid1/dorothee/14_frontiers_QR_restraints/galilee/Berkeley-lab/run_galilee.py'
@@ -107,7 +107,7 @@ class RunGenerate(ProgramTemplate):
 
     commands = list()
     #for pdb_code in pdb_code_list:
-    for pdb_code in pdb_code_list[:10000]:
+    for pdb_code in pdb_code_list[:15000]:
       pdb_code = pdb_code.lower()
       #
       if (self.params.mode == 'one_cpu'):
@@ -166,6 +166,10 @@ class process_one_model():
     self.selection_dict_gol = {}
     self.selection_dict_hoh = {}
     self.json_data = {}
+    self.n_ss_helix_gol = {}
+    self.n_ss_sheet_gol = {}
+    self.n_ss_helix_hoh = {}
+    self.n_ss_sheet_hoh = {}
 
   #-----------------------------------------------------------------------------
 
@@ -220,15 +224,19 @@ class process_one_model():
 
     self.get_hbonds()
 
-    self.get_ss()
+    self.get_ss("GOL")
+    self.get_ss("HOH")
 
   #----------------------------------------------------------------------------
 
-  def get_ss(self):
+  def get_ss(self,resname):
     '''
     Get xxxxxxx
     '''
     make_sub_header('Get secondary structure', out=self.logger)
+    ss_struct_dict_helix = {}
+    ss_struct_dict_sheet = {}
+    selection_dict = {}
     try:
       pdb_hierarchy = self.model.get_hierarchy()
       sec_str_from_pdb_file = self.model.get_ss_annotation()
@@ -250,8 +258,17 @@ class process_one_model():
       isel_beta = beta.iselection()
 
       assert alpha.size() == beta.size() == pdb_hierarchy.atoms().size()
-      for sel_str in self.selection_dict_gol.keys():
-        print(sel_str)
+      if resname == 'GOL':
+        ss_struct_dict_helix = self.n_ss_helix_gol 
+        ss_struct_dict_sheet = self.n_ss_sheet_gol
+        selection_dict = self.selection_dict_gol 
+    
+      elif resname == 'HOH':
+        ss_struct_dict_helix = self.n_ss_helix_hoh 
+        ss_struct_dict_sheet = self.n_ss_sheet_hoh
+        selection_dict = self.selection_dict_hoh  
+      for sel_str in selection_dict.keys():
+
         near_res = "residues_within(5,%s) and not (%s)" % (sel_str, sel_str)
         isel_near_res = self.model.iselection(near_res)
         n_atoms = pdb_hierarchy.atoms().size()
@@ -261,8 +278,12 @@ class process_one_model():
         isel_beta_near_gol = flex.intersection(
           size = n_atoms,iselections = [isel_near_res,isel_beta]).iselection()
         m_beta = self.model.select(isel_beta_near_gol)
-        print('number residues in helix: ', m_alpha.overall_counts().n_residues)
-        print('number residues in sheet: ', m_beta.overall_counts().n_residues)
+        n_ss_helix = m_alpha.overall_counts().n_residues
+        n_ss_sheet = m_beta.overall_counts().n_residues
+        print('number residues in helix: ', n_ss_helix)
+        print('number residues in sheet: ', n_ss_sheet)
+        self.json_data[resname][sel_str]['n_ss_helix'] = n_ss_helix
+        self.json_data[resname][sel_str]['n_ss_beta']  = n_ss_sheet
         #print(dir(m_alpha.overall_counts()))
         # ****************************************
         # uncomment for checking
@@ -273,6 +294,8 @@ class process_one_model():
       print(msg, file=self.logger)
       self.success   = False
       print('failed secondary structure.\n' , file=self.logger)
+
+    self.save_json()
 
   #-----------------------------------------------------------------------------
 
@@ -684,3 +707,4 @@ if __name__ == '__main__':
   #
   from iotbx.cli_parser import run_program
   run_program(program_class=RunGenerate)
+
