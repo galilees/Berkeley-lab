@@ -28,8 +28,8 @@ def run():
     #  if not file.endswith('.json'): continue
       with open(file_name, 'r') as fp:
         n_json += 1
-        if n_json > 500: break
-        print(file_name)
+        #if n_json > 500: break
+        #print(file_name)
         data = json.load(fp)
         success = data['success']
         if not success:
