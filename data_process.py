@@ -6,7 +6,8 @@ import os
 import time
 
 
-results_dir = '/net/anaconda/raid1/dorothee/14_frontiers_QR_restraints/galilee/json_files/'
+#results_dir = '/net/anaconda/raid1/dorothee/14_frontiers_QR_restraints/galilee/json_files/'
+results_dir = '/net/anaconda/raid1/dorothee/14_frontiers_QR_restraints/galilee/pdb_survey/'
 # results_dir = '/net/cci-filer3/home/galilees/pdb_survey_gol/'
 
 

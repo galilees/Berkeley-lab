@@ -258,6 +258,7 @@ class process_one_model():
       isel_beta = beta.iselection()
 
       assert alpha.size() == beta.size() == pdb_hierarchy.atoms().size()
+<<<<<<< HEAD
       if resname == 'GOL':
         ss_struct_dict_helix = self.n_ss_helix_gol 
         ss_struct_dict_sheet = self.n_ss_sheet_gol
@@ -269,6 +270,12 @@ class process_one_model():
         selection_dict = self.selection_dict_hoh  
       for sel_str in selection_dict.keys():
 
+=======
+      for sel_str in self.selection_dict_gol.keys():
+        self.json_data['GOL'][sel_str]['n_ss_helix'] = None # better place to initialize?
+        self.json_data['GOL'][sel_str]['n_ss_beta']  = None  # better place to initialize?
+        print(sel_str)
+>>>>>>> 6c98e9ce528a6af965eb0b8f1b3afbdf878682fc
         near_res = "residues_within(5,%s) and not (%s)" % (sel_str, sel_str)
         isel_near_res = self.model.iselection(near_res)
         n_atoms = pdb_hierarchy.atoms().size()
@@ -282,8 +289,13 @@ class process_one_model():
         n_ss_sheet = m_beta.overall_counts().n_residues
         print('number residues in helix: ', n_ss_helix)
         print('number residues in sheet: ', n_ss_sheet)
+<<<<<<< HEAD
         self.json_data[resname][sel_str]['n_ss_helix'] = n_ss_helix
         self.json_data[resname][sel_str]['n_ss_beta']  = n_ss_sheet
+=======
+        self.json_data['GOL'][sel_str]['n_ss_helix'] = n_ss_helix
+        self.json_data['GOL'][sel_str]['n_ss_beta']  = n_ss_sheet
+>>>>>>> 6c98e9ce528a6af965eb0b8f1b3afbdf878682fc
         #print(dir(m_alpha.overall_counts()))
         # ****************************************
         # uncomment for checking
